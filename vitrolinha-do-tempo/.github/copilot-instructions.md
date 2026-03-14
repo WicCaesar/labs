@@ -1,0 +1,90 @@
+# Copilot Instructions for vitrolinha-do-tempo
+
+## Product direction (non-negotiable)
+- The game must be responsive and playable on **mobile, laptop, and desktop**.
+- Use **React for UI/UX layer** (menus, HUD, overlays, settings, forms, navigation).
+- Use **Phaser only for game-world rendering and gameplay simulation**.
+- Integrate React ↔ Phaser communication through a shared **EventBus** (no direct scene-to-DOM coupling).
+
+## Current codebase baseline
+- Stack is currently **Phaser 3 + TypeScript + Vite**.
+- Bootstrap flow today: `index.html` → `src/main.ts` → `src/game/main.ts` (`new Game(...)`).
+- Scene registration is centralized in `src/game/main.ts` (`scene: [MainGame]`).
+- Scene example lives in `src/game/scenes/Game.ts`.
+
+## Architecture rules for new work
+- Keep Phaser boot/config in `src/game/main.ts` and scene logic in `src/game/scenes/*`.
+- Keep **one Phaser scene per file**, with each scene extending `Phaser.Scene`.
+- Keep UI state and UI rendering in React components (do not add DOM HUD/text from Phaser except debug-only).
+- Exchange data through EventBus events such as:
+  - Phaser emits: `game:ready`, `score:changed`, `player:dead`
+  - React emits: `ui:start-game`, `ui:pause`, `ui:resume`
+- Keep EventBus payloads typed and stable; treat event names as public contract.
+- Prefer constants/enums for **scene keys, EventBus event names, and asset keys** instead of scattering raw strings.
+
+## Gameplay code organization preferences
+- Keep scene `update()` methods thin; move substantial gameplay logic into focused helpers, controllers, or systems instead of large inline branches.
+- Prefer **finite state machines** for entity/gameplay modes when behavior grows beyond a simple boolean or one-off flag.
+- Treat **input as scene-level state**, not player-owned state; gameplay systems can consume scene input, and React-originated commands should enter via EventBus.
+- For isolated animation, collision, or layout experiments, a temporary `TestScene` is encouraged during development, but do not leave dev-only scenes wired into production unintentionally.
+- Use dedicated scene-level managers/plugins for cross-cutting Phaser concerns (input mapping, audio orchestration, map loading) only when the logic is truly shared; do not introduce ECS or plugin abstractions by default.
+
+## Responsive implementation expectations
+- Phaser canvas should scale fluidly with viewport; avoid hard-coding a desktop-only layout.
+- Prefer `Scale.FIT` + `autoCenter` and compute scene placement from current `scale.width/height`.
+- React UI must support touch and pointer input and remain usable over the canvas at small widths.
+- Keep CSS/layout work in UI layer; Phaser handles world/camera scaling only.
+
+## Preferred folder layout as the project grows
+- Keep Phaser runtime code under `src/game/`, with scenes in `src/game/scenes/` and scene-specific helpers nearby.
+- Put React UI under a dedicated tree such as `src/ui/` (for example: `components/`, `screens/`, `hooks/`).
+- Keep the shared EventBus in a neutral location such as `src/shared/events/` or `src/events/` so neither React nor Phaser owns the contract.
+- Store event names, scene keys, and asset keys in typed constants files under a shared area such as `src/shared/constants/`.
+- If both React and Phaser need domain types, place them in `src/shared/types/` rather than duplicating interfaces across layers.
+- Prefer feature-local files first, and move code into shared folders only after at least two consumers need the same contract or helper.
+- Example target structure when the React UI layer is introduced:
+
+  ```text
+  src/
+    main.ts
+    game/
+      main.ts
+      scenes/
+        Game.ts
+        TestScene.ts
+    ui/
+      App.tsx
+      components/
+        Hud.tsx
+        PauseMenu.tsx
+      screens/
+        HomeScreen.tsx
+    shared/
+      events/
+        EventBus.ts
+        eventNames.ts
+      constants/
+        sceneKeys.ts
+        assetKeys.ts
+      types/
+        game.ts
+  ```
+- Prefer filenames that match responsibility directly: `Hud.tsx` for HUD UI, `sceneKeys.ts` for scene constants, `EventBus.ts` for the shared emitter, `game.ts` for shared gameplay types.
+
+## Build and dev workflows
+- Install: `npm install`
+- Dev: `npm run dev` (or `npm run dev-nolog`)
+- Build: `npm run build` (or `npm run build-nolog`)
+- Vite configs: `vite/config.dev.mjs` and `vite/config.prod.mjs` (port `8080`).
+
+## Optional external guidance
+- If a task overlaps a globally installed skill (for example Phaser architecture, React patterns, testing, or UI/UX), first check whether a relevant skill is available via `npx skills list -g`.
+- Relevant currently installed examples include `phaser-gamedev`, `vercel-react-best-practices`, `webapp-testing`, `ui-ux-pro-max`, and `web-design-guidelines`.
+- Use global skills as **supplemental guidance**, not as authority over the repository’s own conventions; prefer this file and the existing codebase when they conflict.
+- When applying advice from a skill, adapt it to this project’s rules: React owns UI, Phaser owns game rendering, and cross-layer communication goes through the typed EventBus.
+
+## Project conventions to preserve
+- TypeScript strictness is enabled (`noUnusedLocals`, `noUnusedParameters` in `tsconfig.json`).
+- Assets loaded by Phaser are under `public/assets` (`this.load.setPath('assets')`).
+- `phaser` is split into its own chunk in Vite (`manualChunks.phaser`).
+- `log.js` telemetry runs in default `dev/build`; use `*-nolog` when needed.
