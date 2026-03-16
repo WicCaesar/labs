@@ -1,148 +1,192 @@
-# 🤝 Guia de Contribuição
+# Contributing Guide
 
-Obrigado por considerar contribuir com o **Vitrolinha do Tempo**! Este documento fornece diretrizes para tornar o processo de contribuição claro e eficiente.
+Thank you for considering contributing to **Vitrolinha do Tempo**! This document provides guidelines to make the contribution process clear and efficient.
 
-## 📋 Índice
+## Table of Contents
 
-- [Como Contribuir](#como-contribuir)
-- [Configuração do Ambiente](#configuração-do-ambiente)
-- [Processo de Desenvolvimento](#processo-de-desenvolvimento)
-- [Padrões de Código](#padrões-de-código)
-- [Commits](#commits)
+- [How to Contribute](#how-to-contribute)
+- [Development Setup](#development-setup)
+- [Development Process](#development-process)
+- [Code Standards](#code-standards)
+- [Commit Guidelines](#commit-guidelines)
 - [Pull Requests](#pull-requests)
+- [Questions](#questions)
 
-## 🚀 Como Contribuir
+## How to Contribute
 
-Existem várias formas de contribuir:
+There are several ways to contribute:
 
-- 🐛 **Reportar bugs**: Abra uma issue descrevendo o problema
-- 💡 **Sugerir funcionalidades**: Compartilhe suas ideias através de issues
-- 📝 **Melhorar documentação**: Corrija ou expanda a documentação
-- 💻 **Contribuir com código**: Implemente features ou corrija bugs
+- **Report bugs**: Open an issue describing the problem
+- **Suggest features**: Share your ideas through issues
+- **Improve documentation**: Fix or expand the documentation
+- **Contribute code**: Implement features or fix bugs
 
-## ⚙️ Configuração do Ambiente
+## Development Setup
 
-### Pré-requisitos
+### Prerequisites
 
-- Node.js 18+ e npm
+- Node.js 18+ and npm
 - Git
 
-### Instalação
+### Installation
 
-1. **Fork e clone o repositório**
+1. Fork and clone the repository
+
    ```bash
-   git clone https://github.com/seu-usuario/vitrolinha-do-tempo.git
+   git clone https://github.com/your-username/vitrolinha-do-tempo.git
    cd vitrolinha-do-tempo
    ```
 
-2. **Instale as dependências**
+2. Install dependencies
+
    ```bash
    npm install
    ```
 
-3. **Inicie o servidor de desenvolvimento**
+3. Start the development server
+
    ```bash
    npm run dev
    ```
-   O projeto estará disponível em `http://localhost:8080`
 
-## 🔄 Processo de Desenvolvimento
+   The project will be available at `http://localhost:8080`
 
-1. **Crie uma branch para sua feature**
+## Development Process
+
+1. Create a branch for your feature
+
    ```bash
-   git checkout -b feature/nome-da-feature
+   git checkout -b feature/feature-name
    ```
 
-2. **Faça suas alterações**
-   - Escreva código claro e bem documentado
-   - Teste suas alterações localmente
+2. Make your changes
 
-3. **Commit suas alterações**
+   - Write clear and well-documented code
+   - Test your changes locally
+
+3. Commit your changes
+
    ```bash
    git add .
-   git commit -m "feat: adiciona nova funcionalidade"
+   git commit -m "feat: add new functionality"
    ```
 
-4. **Push para seu fork**
+4. Push to your fork
+
    ```bash
-   git push origin feature/nome-da-feature
+   git push origin feature/feature-name
    ```
 
-5. **Abra um Pull Request**
+5. Open a Pull Request
 
-## 📐 Padrões de Código
+## Code Standards
 
 ### TypeScript
 
-- Use TypeScript sempre que possível
-- Mantenha funções pequenas e focadas
-- Use tipos explícitos quando não for óbvio
+- Use TypeScript whenever possible
+- Keep functions small and focused
+- Use explicit types when not obvious
+- Follow the project's ESLint and Prettier configurations
 
-### Estrutura do Projeto
+### Project Structure
 
 ```
-├── src/                # Código-fonte
-│   ├── game/          # Lógica do jogo Phaser
-│   │   ├── scenes/    # Cenas do jogo
-│   │   └── main.ts    # Configuração principal
-│   └── main.ts        # Ponto de entrada
-├── public/            # Arquivos estáticos
-│   └── assets/       # Assets do jogo
-├── config/           # Configurações do Vite
-└── build/           # Build de produção (gerado)
+├── src/                # Source code
+│   ├── game/          # Phaser game logic
+│   │   ├── scenes/    # Game scenes
+│   │   └── main.ts    # Main configuration
+│   └── main.ts        # Entry point
+├── public/            # Static files
+│   └── assets/       # Game assets
+├── config/           # Vite configurations
+└── build/           # Production build (generated)
 ```
 
-## 📝 Commits
+### Architecture Rules
 
-Seguimos a convenção [Conventional Commits](https://www.conventionalcommits.org/):
+- Keep Phaser boot/config in `src/game/main.ts` and scene logic in `src/game/scenes/*`
+- Keep one Phaser scene per file, with each scene extending `Phaser.Scene`
+- Keep UI state and UI rendering in React components
+- Exchange data through EventBus events
+- Prefer constants/enums for scene keys, EventBus event names, and asset keys
 
-- `feat:` Nova funcionalidade
-- `fix:` Correção de bug
-- `docs:` Mudanças na documentação
-- `style:` Formatação de código
-- `refactor:` Refatoração de código
-- `test:` Adição ou correção de testes
-- `chore:` Tarefas de manutenção
+## Commit Guidelines
 
-**Exemplos:**
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `style:` Code formatting
+- `refactor:` Code refactoring
+- `test:` Adding or fixing tests
+- `chore:` Maintenance tasks
+
+### Examples
+
 ```bash
-feat: adiciona sistema de pontuação
-fix: corrige bug na animação de sprites
-docs: atualiza README com novas instruções
+feat: add scoring system
+fix: correct sprite animation bug
+docs: update README with new instructions
+refactor: reorganize scene structure
+test: add unit tests for EventBus
 ```
 
-## 🔍 Pull Requests
+## Pull Requests
 
 ### Checklist
 
-- [ ] O código está funcionando localmente
-- [ ] Segui os padrões de código do projeto
-- [ ] Atualizei a documentação se necessário
-- [ ] Meus commits seguem a convenção estabelecida
+Before submitting a pull request, ensure:
 
-### Descrição do PR
+- [ ] The code is working locally
+- [ ] Code follows the project's style guidelines
+- [ ] Documentation is updated if necessary
+- [ ] Commits follow the established convention
+- [ ] No unnecessary files are included
+- [ ] TypeScript types are properly defined
 
-Use este template:
+### PR Description Template
+
+Use this template when opening a pull request:
 
 ```markdown
-## Descrição
-Breve descrição das mudanças
+## Description
 
-## Tipo de mudança
+Brief description of the changes
+
+## Type of Change
+
 - [ ] Bug fix
-- [ ] Nova feature
+- [ ] New feature
 - [ ] Breaking change
-- [ ] Documentação
+- [ ] Documentation update
 
-## Como testar
-1. Passo 1
-2. Passo 2
+## How to Test
+
+1. Step 1
+2. Step 2
+3. Expected result
+
+## Related Issues
+
+Closes #(issue number)
 ```
 
-## ❓ Dúvidas
+### Review Process
 
-Se tiver dúvidas, abra uma issue com a tag `question`.
+- All pull requests require review before merging
+- Address review comments promptly
+- Keep pull requests focused on a single concern
+- Update your branch if conflicts arise with main
+
+## Questions
+
+If you have questions, open an issue with the `question` label or reach out through the project's communication channels.
+
+## Code of Conduct
+
+By participating in this project, you agree to maintain a respectful and collaborative environment. Treat all contributors with respect and professionalism.
 
 ---
 
-**Obrigado por contribuir! 🎉**
+Thank you for contributing!
