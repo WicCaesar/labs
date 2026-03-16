@@ -32,6 +32,7 @@ export interface QuizQuestionRecord {
 	category: string; // E.g., "General Knowledge", "Science", "History", etc.
 	difficulty: 'easy' | 'medium' | 'hard';
 	prompt: MediaPayload; // The question prompt, which can be text, image, audio, or gif
+	promptText?: string; // Optional text shown together with non-text prompts (image/gif/audio/video)
 	options: AnswerOptions; // 2, 3, or 4 alternatives; the first option is always the correct one
 	tags?: string[]; // Optional tags for categorization and filtering, e.g., ["geography", "logos", "audio"]
 }
@@ -74,8 +75,8 @@ export const questionBank: QuizQuestionRecord[] = [
 			kind: 'image',
 			value: '/assets/logo.png',
 			alt: 'A stylized Phaser logo image shown in the prompt area.',
-			credit: 'Local asset: public/assets/logo.png'
 		},
+		promptText: 'Which game engine logo is shown in the image?',
 		options: [
 			'Phaser logo',
 			'Unity icon',
@@ -95,6 +96,7 @@ export const questionBank: QuizQuestionRecord[] = [
 			transcript: 'A short dinosaur roar sound clip.',
 			credit: 'MDN interactive examples audio'
 		},
+		promptText: 'Listen to the audio and choose the correct statement.',
 		options: [
 			'This sound is a dinosaur roar',
 			'This sound is NOT a dinosaur roar'
@@ -111,8 +113,8 @@ export const questionBank: QuizQuestionRecord[] = [
 			kind: 'gif',
 			value: 'https://media.giphy.com/media/ICOgUNjpvO0PC/giphy.gif',
 			alt: 'A looping animated reaction GIF.',
-			credit: 'Giphy'
 		},
+		promptText: 'What type of media is being shown above?',
 		options: [
 			'This is an animated GIF',
 			'This is a static PNG',
@@ -136,7 +138,6 @@ export const questionBank: QuizQuestionRecord[] = [
 				kind: 'image',
 				value: '/assets/logo.png',
 				alt: 'Phaser logo in white on a transparent background.',
-				credit: 'Local asset: public/assets/logo.png'
 			},
 			{
 				kind: 'image',
@@ -174,13 +175,11 @@ export const questionBank: QuizQuestionRecord[] = [
 				kind: 'image',
 				value: '/assets/bg.png',
 				alt: 'Blue sky styled background image from the Phaser template.',
-				credit: 'Local asset: public/assets/bg.png'
 			},
 			{
 				kind: 'image',
 				value: '/assets/logo.png',
 				alt: 'Phaser logo image.',
-				credit: 'Local asset: public/assets/logo.png'
 			},
 			{
 				kind: 'image',
@@ -250,25 +249,21 @@ export const questionBank: QuizQuestionRecord[] = [
 				kind: 'audio',
 				value: 'https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3',
 				transcript: 'A short dinosaur roar sound clip.',
-				credit: 'MDN interactive examples audio'
 			},
 			{
 				kind: 'gif',
 				value: 'https://media.giphy.com/media/ICOgUNjpvO0PC/giphy.gif',
 				alt: 'A looping reaction GIF.',
-				credit: 'Giphy'
 			},
 			{
 				kind: 'gif',
 				value: 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif',
 				alt: 'A looping celebratory animated GIF.',
-				credit: 'Giphy'
 			},
 			{
 				kind: 'gif',
 				value: 'https://media.giphy.com/media/l0HlBO7eyXzSZkJri/giphy.gif',
 				alt: 'A looping animated GIF with colorful movement.',
-				credit: 'Giphy'
 			}
 		],
 		tags: ['mixed-media', 'gif', 'audio-options']

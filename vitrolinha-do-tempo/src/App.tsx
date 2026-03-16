@@ -1,228 +1,477 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { EventBus } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
 
 const shuffled = <T,>(values: readonly T[]): T[] => {
-    const copy = [...values];
+	const copy = [...values];
 
-    for (let i = copy.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
+	for (let i = copy.length - 1; i > 0; i -= 1) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[copy[i], copy[j]] = [copy[j], copy[i]];
+	}
 
-    return copy;
+	return copy;
 };
 
 const dollars = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
+	style: 'currency',
+	currency: 'USD',
+	maximumFractionDigits: 0
 });
 
-const MediaBlock = ({ media }: { media: MediaPayload }) => {
-    if (media.kind === 'text') {
-        return <p className="media-text">{media.value}</p>;
-    }
+type Help2CardValue = 0 | 1 | 2 | 3;
 
-    if (media.kind === 'audio') {
-        return (
-            <div className="media-audio">
-                <audio controls preload="metadata" aria-label="Question audio">
-                    <source src={media.value} />
-                    Your browser does not support the audio element.
-                </audio>
-                {media.transcript ? (
-                    <details>
-                        <summary>Transcript</summary>
-                        <p>{media.transcript}</p>
-                    </details>
-                ) : null}
-            </div>
-        );
-    }
-
-    return (
-        <figure className="media-figure">
-            <img
-                src={media.value}
-                alt={media.alt ?? 'Question media'}
-                loading="lazy"
-                decoding="async"
-            />
-            {media.credit ? <figcaption>{media.credit}</figcaption> : null}
-        </figure>
-    );
+type Help2Card = {
+	id: string;
+	value: Help2CardValue;
 };
 
-const OptionContent = ({ option }: { option: NormalizedAnswerOption }) => {
-    return <MediaBlock media={option.content} />;
+const HELP2_CARD_META: Record<Help2CardValue, { title: string; suit: string; removed: number }> = {
+	0: { title: 'Rei', suit: '♣', removed: 0 },
+	1: { title: 'Ás', suit: '♠', removed: 1 },
+	2: { title: 'Dois', suit: '♦', removed: 2 },
+	3: { title: 'Três', suit: '♥', removed: 3 }
+};
+
+const getHelp2CardValues = (optionCount: number): Help2CardValue[] => {
+	const values: Help2CardValue[] = [0];
+
+	if (optionCount >= 2) {
+		values.push(1);
+	}
+
+	if (optionCount >= 3) {
+		values.push(2);
+	}
+
+	if (optionCount >= 4) {
+		values.push(3);
+	}
+
+	return values;
+};
+
+const MediaBlock = ({
+	media,
+	includeSupplemental = true,
+	audioLabel = 'Áudio'
+}: {
+	media: MediaPayload;
+	includeSupplemental?: boolean;
+	audioLabel?: string;
+}) => {
+	if (media.kind === 'text') {
+		return <p className="media-text">{media.value}</p>;
+	}
+
+	if (media.kind === 'audio') {
+		return (
+			<div className="media-audio" role="group" aria-label={audioLabel}>
+				<div className="media-main">
+					<audio controls preload="metadata" aria-label={audioLabel}>
+						<source src={media.value} />
+						Navegador sem suporte para esse áudio. Informe-nos.
+					</audio>
+				</div>
+				{includeSupplemental ? (
+					<div className="media-supplemental media-supplemental-audio">
+						{media.transcript ? (
+							<details>
+								<summary>Transcrição</summary>
+								<p>{media.transcript}</p>
+							</details>
+						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+						{media.credit ? (
+							<p className="media-credit">Fonte: {media.credit}</p>
+						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+					</div>
+				) : null}
+			</div>
+		);
+	}
+
+	return (
+		<figure className="media-figure">
+			<div className="media-main">
+				<img
+					src={media.value}
+					alt={media.alt ?? 'Mídia'}
+					loading="lazy"
+					decoding="async"
+				/>
+			</div>
+			{includeSupplemental ? (
+				<figcaption className="media-supplemental media-figure-caption">
+					{media.credit ? `Fonte: ${media.credit}` : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+				</figcaption>
+			) : null}
+		</figure>
+	);
+};
+
+const OptionContent = ({
+	option,
+	includeSupplemental = true
+}: {
+	option: NormalizedAnswerOption;
+	includeSupplemental?: boolean;
+}) => {
+	return (
+		<MediaBlock
+			media={option.content}
+			includeSupplemental={includeSupplemental}
+			audioLabel="Áudio"
+		/>
+	);
 };
 
 export const App = () => {
-    const [questionIndex, setQuestionIndex] = useState(0);
-    const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
-    const [feedback, setFeedback] = useState('Select an option to test the mock flow.');
-    const [progress, setProgress] = useState<{
-        activeSegment: Segment;
-        clearedSegments: Segment[];
-        guaranteedPrize: number;
-        currentQuestionPrize: number;
-        canAdvanceByAnswer: boolean;
-        isGameWon: boolean;
-        skipsRemaining: number;
-    }>({
-        activeSegment: 1,
-        clearedSegments: [],
-        guaranteedPrize: 0,
-        currentQuestionPrize: questionBank[0]?.prizeValue ?? 0,
-        canAdvanceByAnswer: false,
-        isGameWon: false,
-        skipsRemaining: 3
-    });
+	const [questionIndex, setQuestionIndex] = useState(0);
+	const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+	const [removedOptionIds, setRemovedOptionIds] = useState<string[]>([]);
+	const [help2Deck, setHelp2Deck] = useState<Help2Card[]>([]);
+	const [isHelp2PanelOpen, setIsHelp2PanelOpen] = useState(false);
+	const [revealedHelp2CardId, setRevealedHelp2CardId] = useState<string | null>(null);
+	const [help2Used, setHelp2Used] = useState(false);
+	const [isResolvingHelp2, setIsResolvingHelp2] = useState(false);
+	const [feedback, setFeedback] = useState('Select an option to test the mock flow.');
+	const help2ResolveTimeoutRef = useRef<number | null>(null);
+	const [progress, setProgress] = useState<{
+		activeSegment: Segment;
+		clearedSegments: Segment[];
+		guaranteedPrize: number;
+		currentQuestionPrize: number;
+		canAdvanceByAnswer: boolean;
+		isGameWon: boolean;
+		skipsRemaining: number;
+	}>({
+		activeSegment: 1,
+		clearedSegments: [],
+		guaranteedPrize: 0,
+		currentQuestionPrize: questionBank[0]?.prizeValue ?? 0,
+		canAdvanceByAnswer: false,
+		isGameWon: false,
+		skipsRemaining: 3
+	});
 
-    const question: QuizQuestionRecord = questionBank[questionIndex % questionBank.length];
+	const question: QuizQuestionRecord = questionBank[questionIndex % questionBank.length];
 
-    const normalizedOptions = useMemo(() => {
-        return getNormalizedOptions(question);
-    }, [question]);
+	const normalizedOptions = useMemo(() => {
+		return getNormalizedOptions(question);
+	}, [question]);
 
-    const shuffledOptions = useMemo(() => {
-        return shuffled(normalizedOptions);
-    }, [normalizedOptions]);
+	const shuffledOptions = useMemo(() => {
+		return shuffled(normalizedOptions);
+	}, [normalizedOptions]);
 
-    const correctOptionId = getCorrectOptionId(question);
+	const visibleOptions = useMemo(() => {
+		return shuffledOptions.filter((option) => !removedOptionIds.includes(option.id));
+	}, [removedOptionIds, shuffledOptions]);
 
-    const selectedIsCorrect = selectedOptionId === correctOptionId;
+	const correctOptionId = getCorrectOptionId(question);
+	const questionPromptText = question.prompt.kind === 'text'
+		? null
+		: (question.promptText ?? 'Observe o que está abaixo e escolha a resposta mais adequada.');
 
-    useEffect(() => {
-        const game = StartGame('game-container');
+	const selectedIsCorrect = selectedOptionId === correctOptionId;
 
-        return () => {
-            game.destroy(true);
-        };
-    }, []);
+	useEffect(() => {
+		const game = StartGame('game-container');
 
-    useEffect(() => {
-        const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
-            setQuestionIndex(nextIndex % questionBank.length);
-            setSelectedOptionId(null);
-        });
+		return () => {
+			game.destroy(true);
+		};
+	}, []);
 
-        const unsubscribeFeedback = EventBus.on('quiz:feedback', ({ message }) => {
-            setFeedback(message);
-        });
+	useEffect(() => {
+		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
+			setQuestionIndex(nextIndex % questionBank.length);
+			setSelectedOptionId(null);
+		});
 
-        const unsubscribeProgress = EventBus.on('quiz:progress-state-changed', (state) => {
-            setProgress(state);
-        });
+		const unsubscribeFeedback = EventBus.on('quiz:feedback', ({ message }) => {
+			setFeedback(message);
+		});
 
-        return () => {
-            unsubscribeIndex();
-            unsubscribeFeedback();
-            unsubscribeProgress();
-        };
-    }, []);
+		const unsubscribeProgress = EventBus.on('quiz:progress-state-changed', (state) => {
+			setProgress(state);
+		});
 
-    useEffect(() => {
-        EventBus.emit('quiz:question-changed', {
-            questionId: question.id,
-            segment: question.segment
-        });
-    }, [question.id, question.segment]);
+		return () => {
+			unsubscribeIndex();
+			unsubscribeFeedback();
+			unsubscribeProgress();
+		};
+	}, []);
 
-    const onOptionSelect = (optionId: string) => {
-        setSelectedOptionId(optionId);
+	useEffect(() => {
+		setRemovedOptionIds([]);
+		setHelp2Deck([]);
+		setIsHelp2PanelOpen(false);
+		setRevealedHelp2CardId(null);
+		setHelp2Used(false);
+		setIsResolvingHelp2(false);
 
-        EventBus.emit('quiz:answer-selected', {
-            questionId: question.id,
-            optionId,
-            isCorrect: optionId === correctOptionId,
-            segment: question.segment
-        });
-    };
+		if (help2ResolveTimeoutRef.current !== null) {
+			window.clearTimeout(help2ResolveTimeoutRef.current);
+			help2ResolveTimeoutRef.current = null;
+		}
+	}, [question.id]);
 
-    const goNextQuestion = () => {
-        EventBus.emit('ui:request-next-question', {
-            reason: 'manual'
-        });
-    };
+	useEffect(() => {
+		return () => {
+			if (help2ResolveTimeoutRef.current !== null) {
+				window.clearTimeout(help2ResolveTimeoutRef.current);
+			}
+		};
+	}, []);
 
-    const skipLabel = `SKIP ${'🦘'.repeat(progress.skipsRemaining)}`;
-    const skipDisabled = progress.skipsRemaining <= 0;
+	useEffect(() => {
+		EventBus.emit('quiz:question-changed', {
+			questionId: question.id,
+			segment: question.segment
+		});
+	}, [question.id, question.segment]);
 
-    return (
-        <main className="quiz-layout" aria-label="Quiz game mock layout">
-            <div id="game-container" className="phaser-host" aria-hidden="true" />
+	const onOptionSelect = (optionId: string) => {
+		setSelectedOptionId(optionId);
 
-            <header className="question-panel" role="region" aria-labelledby="question-title">
-                <div className="question-meta">
-                    <span className="badge">Segment {progress.activeSegment}</span>
-                    <span className="badge">Question Prize {dollars.format(progress.currentQuestionPrize)}</span>
-                    <span className="badge">Guaranteed {dollars.format(progress.guaranteedPrize)}</span>
-                    <span className="badge">
-                        Cleared {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'none'}
-                    </span>
-                    <span className="badge">
-                        {progress.canAdvanceByAnswer ? 'Correct answer advances segment' : 'Practice question'}
-                    </span>
-                    <span className="badge">{question.category}</span>
-                </div>
-                <h1 id="question-title" className="sr-only">Question</h1>
-                <MediaBlock media={question.prompt} />
-            </header>
+		EventBus.emit('quiz:answer-selected', {
+			questionId: question.id,
+			optionId,
+			isCorrect: optionId === correctOptionId,
+			segment: question.segment
+		});
+	};
 
-            <section className="answers-grid" data-count={shuffledOptions.length} aria-label="Answer alternatives">
-                {shuffledOptions.map((option, idx) => {
-                    const isSelected = selectedOptionId === option.id;
-                    const isCorrect = option.id === correctOptionId;
+	const onAnswerCardKeyDown = (event: KeyboardEvent<HTMLElement>, optionId: string) => {
+		if (event.key !== 'Enter' && event.key !== ' ') {
+			return;
+		}
 
-                    const statusClass = selectedOptionId
-                        ? isCorrect
-                            ? 'is-correct'
-                            : isSelected
-                                ? 'is-wrong'
-                                : ''
-                        : '';
+		event.preventDefault();
+		onOptionSelect(optionId);
+	};
 
-                    const isLastOdd = shuffledOptions.length === 3 && idx === shuffledOptions.length - 1;
+	const stopAnswerSelection = (event: SyntheticEvent<HTMLElement>) => {
+		event.stopPropagation();
+	};
 
-                    return (
-                        <button
-                            key={option.id}
-                            type="button"
-                            className={['answer-button', statusClass, isLastOdd ? 'is-last-odd' : ''].filter(Boolean).join(' ')}
-                            onClick={() => onOptionSelect(option.id)}
-                            aria-pressed={isSelected}
-                        >
-                            <OptionContent option={option} />
-                        </button>
-                    );
-                })}
-            </section>
+	const goNextQuestion = () => {
+		EventBus.emit('ui:request-next-question', {
+			reason: 'manual'
+		});
+	};
 
-            <nav className="actions-row" aria-label="Game controls">
-                <button type="button" className="action-button" disabled aria-disabled="true">Help 1</button>
-                <button type="button" className="action-button" disabled aria-disabled="true">Help 2</button>
-                <button
-                        type="button"
-                        className="action-button"
-                        onClick={goNextQuestion}
-                        disabled={skipDisabled}
-                        aria-disabled={skipDisabled}
-                    >
-                        {skipLabel}
-                    </button>
-            </nav>
+	const openHelp2 = () => {
+		if (help2Used || selectedOptionId || progress.isGameWon) {
+			return;
+		}
 
-            <p className="feedback" aria-live="polite">
-                {progress.isGameWon
-                    ? 'Jackpot reached. You can keep exploring questions for practice. 🏆'
-                    : selectedOptionId
-                        ? (selectedIsCorrect ? 'Correct answer ✅' : 'Not quite. Try the next question. ❌')
-                        : feedback}
-            </p>
-        </main>
-    );
+		const values = shuffled(getHelp2CardValues(normalizedOptions.length));
+		const deck = values.map((value, idx) => ({
+			id: `${question.id}-help2-${idx}-${value}`,
+			value
+		}));
+
+		setHelp2Deck(deck);
+		setRevealedHelp2CardId(null);
+		setIsHelp2PanelOpen(true);
+	};
+
+	const revealHelp2Card = (card: Help2Card) => {
+		if (!isHelp2PanelOpen || revealedHelp2CardId) {
+			return;
+		}
+
+		setRevealedHelp2CardId(card.id);
+		setIsResolvingHelp2(true);
+		setHelp2Used(true);
+
+		help2ResolveTimeoutRef.current = window.setTimeout(() => {
+			const wrongVisibleOptions = visibleOptions.filter((option) => option.id !== correctOptionId);
+			const removableCount = Math.min(card.value, wrongVisibleOptions.length);
+			const removedIds = shuffled(wrongVisibleOptions)
+				.slice(0, removableCount)
+				.map((option) => option.id);
+
+			setRemovedOptionIds((prev) => [...prev, ...removedIds]);
+			setIsHelp2PanelOpen(false);
+			setIsResolvingHelp2(false);
+
+			setFeedback(
+				removedIds.length > 0
+					? `Essa carta remove ${removedIds.length} alternativa${removedIds.length > 1 ? 's' : ''}.`
+					: 'O rei de paus não retira nenhuma das alternativas.'
+			);
+
+			help2ResolveTimeoutRef.current = null;
+		}, 2500);
+	};
+
+	const skipLabel = `PULAR ${'⏭️'.repeat(progress.skipsRemaining)}`;
+	const skipDisabled = progress.skipsRemaining <= 0;
+	const help2Disabled = help2Used || selectedOptionId !== null || progress.isGameWon || isHelp2PanelOpen || isResolvingHelp2;
+
+	return (
+		<main className="quiz-layout" aria-label="Vitrolinha do Tempo">
+			<div id="game-container" className="phaser-host" aria-hidden="true" />
+
+			<header className="question-panel" role="region" aria-labelledby="question-title">
+				<div className="question-meta">
+					<span className="badge">Segmento {progress.activeSegment}</span>
+					<span className="badge">Prêmio da pergunta {dollars.format(progress.currentQuestionPrize)}</span>
+					<span className="badge">Garantido {dollars.format(progress.guaranteedPrize)}</span>
+					<span className="badge">
+						Cleared {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'none'}
+					</span>
+					<span className="badge">
+						{progress.canAdvanceByAnswer ? 'Responda corretamente para avançar' : 'Praticar'}
+					</span>
+					<span className="badge">{question.category}</span>
+				</div>
+				<h1 id="question-title" className="sr-only">Pergunta</h1>
+				{questionPromptText ? <p className="question-prompt-text">{questionPromptText}</p> : null}
+				<MediaBlock media={question.prompt} />
+			</header>
+
+			<section className="answers-grid" data-count={visibleOptions.length} aria-label="Alternativas">
+				{visibleOptions.map((option, idx) => {
+					const isSelected = selectedOptionId === option.id;
+					const isCorrect = option.id === correctOptionId;
+
+					const statusClass = selectedOptionId
+						? isCorrect
+							? 'is-correct'
+							: isSelected
+								? 'is-wrong'
+								: ''
+						: '';
+
+					const isLastOdd = visibleOptions.length === 3 && idx === visibleOptions.length - 1;
+
+					return (
+						option.content.kind === 'audio' ? (
+							<div
+								key={option.id}
+								role="button"
+								tabIndex={0}
+								className={[
+									'answer-option-card',
+									'has-separate-controls',
+									statusClass,
+									isLastOdd ? 'is-last-odd' : ''
+								].filter(Boolean).join(' ')}
+								onClick={() => onOptionSelect(option.id)}
+								onKeyDown={(event) => onAnswerCardKeyDown(event, option.id)}
+								aria-pressed={isSelected}
+							>
+								<div
+									className="answer-option-media"
+									onClick={stopAnswerSelection}
+									onKeyDown={stopAnswerSelection}
+								>
+									<OptionContent option={option} includeSupplemental />
+								</div>
+							</div>
+						) : (
+							<div
+								key={option.id}
+								className={[
+									'answer-option-card',
+									isLastOdd ? 'is-last-odd' : ''
+								].filter(Boolean).join(' ')}
+							>
+								<button
+									type="button"
+									className={['answer-button', statusClass].filter(Boolean).join(' ')}
+									onClick={() => onOptionSelect(option.id)}
+									aria-pressed={isSelected}
+								>
+									<OptionContent option={option} />
+								</button>
+							</div>
+						)
+					);
+				})}
+			</section>
+
+			<nav className="actions-row" aria-label="Assistentes">
+				<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+				<button
+					type="button"
+					className="action-button"
+					onClick={openHelp2}
+					disabled={help2Disabled}
+					aria-disabled={help2Disabled}
+				>
+					DISCOS
+				</button>
+				<button
+					type="button"
+					className="action-button"
+					onClick={goNextQuestion}
+					disabled={skipDisabled}
+					aria-disabled={skipDisabled}
+					>
+					{skipLabel}
+				</button>
+			</nav>
+
+			<p className="feedback" aria-live="polite">
+				{progress.isGameWon
+					? 'Parabéns! Você ganhou! Você pode continuar jogando para aprender mais. 🏆'
+					: selectedOptionId
+						? (selectedIsCorrect ? 'Resposta exata! ✅' : 'Resposta errada. Tente de novo. ❌')
+						: feedback}
+			</p>
+
+			{isHelp2PanelOpen ? (
+				<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">
+					<div className="help2-panel">
+						<h2>Escolha um disco</h2>
+						<p>Os discos podem ajudar a eliminar alternativas erradas.</p>
+						<div className="help2-cards-grid">
+							{help2Deck.map((card) => {
+								const isRevealed = revealedHelp2CardId === card.id;
+								const meta = HELP2_CARD_META[card.value];
+
+								return (
+									<button
+										key={card.id}
+										type="button"
+										className={[
+											'help2-card',
+											isRevealed ? 'is-revealed' : 'is-facedown',
+											isRevealed ? `face-${card.value}` : ''
+										].filter(Boolean).join(' ')}
+										onClick={() => revealHelp2Card(card)}
+										disabled={isResolvingHelp2 && !isRevealed}
+										aria-disabled={isResolvingHelp2 && !isRevealed}
+										aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Face-down card'}
+									>
+										{isRevealed ? (
+											<span className="help2-card-content">
+												<strong>{meta.title}</strong>
+												<span className="help2-card-suit">{meta.suit}</span>
+												<small>
+													{meta.removed === 0
+														? 'Remove 0'
+														: `Remove ${meta.removed}`}
+												</small>
+											</span>
+										) : (
+											<span className="help2-card-back">?</span>
+										)}
+									</button>
+								);
+							})}
+						</div>
+					</div>
+				</div>
+			) : null}
+		</main>
+	);
 };
