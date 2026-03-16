@@ -19,14 +19,16 @@ export class Game extends Scene {
         1: [],
         2: [],
         3: [],
-        4: []
+        4: [],
+        5: []
     };
 
     private readonly questionBagBySegment: Record<Segment, number[]> = {
         1: [],
         2: [],
         3: [],
-        4: []
+        4: [],
+        5: []
     };
 
     private readonly unsubscribeHandlers: Array<() => void> = [];
@@ -42,6 +44,7 @@ export class Game extends Scene {
         this.refillSegmentBag(2);
         this.refillSegmentBag(3);
         this.refillSegmentBag(4);
+        this.refillSegmentBag(5);
     }
 
     create() {
@@ -136,10 +139,10 @@ export class Game extends Scene {
         this.clearedSegments.add(this.activeSegment);
         this.guaranteedPrize = SEGMENT_PRIZE_RANGES[this.activeSegment][1];
 
-        if (this.activeSegment === 4) {
+        if (this.activeSegment === 5) {
             this.isGameWon = true;
             EventBus.emit('quiz:feedback', {
-                message: 'Jackpot! You reached $1,000,000. 🏆',
+                message: 'Jackpot! Você chegou ao final! 🏆',
                 tone: 'success'
             });
             return;
