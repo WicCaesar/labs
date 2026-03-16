@@ -1,6 +1,6 @@
 export type MediaKind = 'text' | 'image' | 'gif' | 'audio';
 
-export type Segment = 1 | 2 | 3 | 4;
+export type Segment = 1 | 2 | 3 | 4 | 5;
 
 
 //* The question mark (?) indicates that this property is optional, as not all media types require alt text.
@@ -43,7 +43,8 @@ export const SEGMENT_PRIZE_RANGES: Record<Segment, readonly [number, number]> = 
 	1: [1000, 5000],
 	2: [10000, 50000],
 	3: [100000, 500000],
-	4: [1000000, 1000000]
+	4: [1000000, 1000000],
+	5: [2000000, 5000000]
 };
 
 export const questionBank: QuizQuestionRecord[] = [
@@ -267,6 +268,381 @@ export const questionBank: QuizQuestionRecord[] = [
 			}
 		],
 		tags: ['mixed-media', 'gif', 'audio-options']
+		},
+
+	// ── Segmento 1 — Cubismo (fácil) ──────────────────────────────────────────
+
+	{
+		id: 'q-009',
+		segment: 1,
+		prizeValue: 1000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'Quem é considerado o co-criador do Cubismo, ao lado de Georges Braque?'
+		},
+		options: [
+			'Pablo Picasso',
+			'Salvador Dalí',
+			'Henri Matisse',
+			'Marcel Duchamp'
+		],
+		tags: ['cubismo', 'artistas']
+	},
+	{
+		id: 'q-010',
+		segment: 1,
+		prizeValue: 2000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'Em que país nasceu Pablo Picasso, um dos fundadores do Cubismo?'
+		},
+		options: [
+			'Espanha',
+			'França',
+			'Itália',
+			'Portugal'
+		],
+		tags: ['cubismo', 'artistas', 'geografia']
+	},
+	{
+		id: 'q-011',
+		segment: 1,
+		prizeValue: 3000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'O Cubismo surgiu no início de qual século?'
+		},
+		options: [
+			'Século XX',
+			'Século XIX',
+			'Século XVIII',
+			'Século XXI'
+		],
+		tags: ['cubismo', 'história']
+	},
+
+	// ── Segmento 2 — Cubismo (fácil a intermediário baixo) ────────────────────
+
+	{
+		id: 'q-012',
+		segment: 2,
+		prizeValue: 10000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'Qual é o nome da famosa pintura de Picasso, de 1907, que retrata cinco figuras femininas e é considerada a grande precursora do Cubismo?'
+		},
+		options: [
+			'Les Demoiselles d\'Avignon',
+			'Guernica',
+			'O Sonho',
+			'La Vie'
+		],
+		tags: ['cubismo', 'obras', 'picasso']
+	},
+	{
+		id: 'q-013',
+		segment: 2,
+		prizeValue: 20000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'Qual é a principal característica visual do Cubismo?'
+		},
+		options: [
+			'Representação de objetos em múltiplas perspectivas simultâneas',
+			'Uso exclusivo de cores primárias vivas',
+			'Pinceladas longas e curvilíneas',
+			'Retrato hiperrealista da natureza'
+		],
+		tags: ['cubismo', 'conceitos']
+	},
+	{
+		id: 'q-014',
+		segment: 2,
+		prizeValue: 30000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Qual vertente da arte africana influenciou diretamente Picasso no desenvolvimento do estilo cubista?'
+		},
+		options: [
+			'Máscaras e esculturas africanas subsaarianas',
+			'Pinturas rupestres do Saara',
+			'Esculturas do antigo Egito',
+			'Cerâmicas do norte da África'
+		],
+		tags: ['cubismo', 'influências', 'arte-africana']
+	},
+	{
+		id: 'q-015',
+		segment: 2,
+		prizeValue: 50000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Em que cidade Picasso e Braque desenvolveram o Cubismo, frequentando os mesmos círculos artísticos de vanguarda?'
+		},
+		options: [
+			'Paris',
+			'Marselha',
+			'Lyon',
+			'Bordeaux'
+		],
+		tags: ['cubismo', 'história', 'geografia']
+	},
+
+	// ── Segmento 3 — Cubismo (fácil a intermediário baixo) ────────────────────
+
+	{
+		id: 'q-016',
+		segment: 3,
+		prizeValue: 100000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'text',
+			value: 'Como se chama a primeira fase do Cubismo, marcada por formas fortemente fragmentadas e paleta monocromática em cinzas e marrons?'
+		},
+		options: [
+			'Cubismo Analítico',
+			'Cubismo Sintético',
+			'Cubismo Órfico',
+			'Cubismo Purista'
+		],
+		tags: ['cubismo', 'fases', 'conceitos']
+	},
+	{
+		id: 'q-017',
+		segment: 3,
+		prizeValue: 200000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Como se chama a segunda fase do Cubismo, que introduziu a colagem e uma paleta de cores mais vibrantes?'
+		},
+		options: [
+			'Cubismo Sintético',
+			'Cubismo Analítico',
+			'Cubismo Abstrato',
+			'Cubismo Futurista'
+		],
+		tags: ['cubismo', 'fases', 'conceitos']
+	},
+	{
+		id: 'q-018',
+		segment: 3,
+		prizeValue: 300000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Quem cunhou o termo "Cubismo" pela primeira vez, em crítica de arte publicada em 1908?'
+		},
+		options: [
+			'Louis Vauxcelles',
+			'Guillaume Apollinaire',
+			'Daniel-Henry Kahnweiler',
+			'Gertrude Stein'
+		],
+		tags: ['cubismo', 'história', 'crítica']
+	},
+	{
+		id: 'q-019',
+		segment: 3,
+		prizeValue: 500000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Qual técnica inovadora Georges Braque introduziu no Cubismo Sintético por volta de 1912, colando recortes de papel e outros materiais diretamente sobre a tela?'
+		},
+		options: [
+			'Papier collé',
+			'Pointilhismo',
+			'Sfumato',
+			'Impasto'
+		],
+		tags: ['cubismo', 'técnicas', 'braque']
+	},
+
+	// ── Segmento 4 — Cubismo (intermediário baixo) ────────────────────────────
+
+	{
+		id: 'q-020',
+		segment: 4,
+		prizeValue: 1000000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Em qual museu de Nova York está permanentemente exposta "Les Demoiselles d\'Avignon", de Picasso?'
+		},
+		options: [
+			'Museu de Arte Moderna (MoMA)',
+			'Metropolitan Museum of Art',
+			'Museu Guggenheim',
+			'Whitney Museum of American Art'
+		],
+		tags: ['cubismo', 'museus', 'obras']
+	},
+	{
+		id: 'q-021',
+		segment: 4,
+		prizeValue: 1000000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Qual pintura de Picasso, de 1937, retrata os horrores do bombardeio de uma cidade basca durante a Guerra Civil Espanhola, usando elementos cubistas em composição dramática?'
+		},
+		options: [
+			'Guernica',
+			'Les Demoiselles d\'Avignon',
+			'O Touro',
+			'Mulher Chorando'
+		],
+		tags: ['cubismo', 'picasso', 'obras', 'história']
+	},
+	{
+		id: 'q-022',
+		segment: 4,
+		prizeValue: 1000000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Juan Gris foi um dos grandes mestres do Cubismo Sintético. De qual país ele era originário?'
+		},
+		options: [
+			'Espanha',
+			'França',
+			'México',
+			'Alemanha'
+		],
+		tags: ['cubismo', 'artistas', 'juan-gris']
+	},
+	{
+		id: 'q-023',
+		segment: 4,
+		prizeValue: 1000000,
+		category: 'Cubismo',
+		difficulty: 'hard',
+		prompt: {
+			kind: 'text',
+			value: 'Qual artista desenvolveu o "Cubismo Órfico" (Orfismo), vertente que priorizava a cor pura e o ritmo visual em detrimento da fragmentação de formas?'
+		},
+		options: [
+			'Robert Delaunay',
+			'Fernand Léger',
+			'Juan Gris',
+			'Jean Metzinger'
+		],
+		tags: ['cubismo', 'orfismo', 'vertentes']
+	},
+
+	// ── Segmento 5 — Cubismo (intermediário a difícil) ────────────────────────
+
+	{
+		id: 'q-024',
+		segment: 5,
+		prizeValue: 2000000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Em qual grande salão parisiense de 1911 o Cubismo ganhou visibilidade internacional pela primeira vez em uma exposição coletiva?'
+		},
+		options: [
+			'Salon des Indépendants',
+			'Salon d\'Automne',
+			'Armory Show',
+			'Salon de la Société Nationale'
+		],
+		tags: ['cubismo', 'história', 'exposições']
+	},
+	{
+		id: 'q-025',
+		segment: 5,
+		prizeValue: 3000000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Quem co-escreveu "Du Cubisme", o principal manifesto teórico do movimento, publicado em 1912?'
+		},
+		options: [
+			'Albert Gleizes e Jean Metzinger',
+			'Pablo Picasso e Georges Braque',
+			'Guillaume Apollinaire e Max Jacob',
+			'Fernand Léger e Robert Delaunay'
+		],
+		tags: ['cubismo', 'manifesto', 'teoria']
+	},
+	{
+		id: 'q-026',
+		segment: 5,
+		prizeValue: 4000000,
+		category: 'Cubismo',
+		difficulty: 'hard',
+		prompt: {
+			kind: 'text',
+			value: 'O estilo particular de Fernand Léger dentro do Cubismo ficou conhecido por qual apelido, em razão do uso recorrente de formas tubulares e cilíndricas?'
+		},
+		options: [
+			'Tubismo',
+			'Purismo',
+			'Orfismo',
+			'Vorticismo'
+		],
+		tags: ['cubismo', 'léger', 'vertentes']
+	},
+	{
+		id: 'q-027',
+		segment: 5,
+		prizeValue: 4500000,
+		category: 'Cubismo',
+		difficulty: 'hard',
+		prompt: {
+			kind: 'text',
+			value: 'Qual pintura de Georges Braque, executada por volta de 1911–1912, é considerada um marco do Cubismo Analítico e foi uma das primeiras obras cubistas a incorporar letras tipográficas como elemento visual?'
+		},
+		options: [
+			'O Português (Le Portugais)',
+			'Casas em l\'Estaque',
+			'Violino e Cântaro',
+			'Natureza-Morta com Violino'
+		],
+		tags: ['cubismo', 'braque', 'obras', 'cubismo-analítico']
+	},
+	{
+		id: 'q-028',
+		segment: 5,
+		prizeValue: 5000000,
+		category: 'Cubismo',
+		difficulty: 'hard',
+		prompt: {
+			kind: 'text',
+			value: 'Ao descrever as telas de Braque numa exposição de 1908, o crítico Louis Vauxcelles usou qual palavra que, de forma acidental, acabou batizando todo o movimento?'
+		},
+		options: [
+			'Cubes (cubos)',
+			'Formes (formas)',
+			'Plans (planos)',
+			'Blocs (blocos)'
+		],
+		tags: ['cubismo', 'história', 'crítica', 'muito-difícil']
 	}
 ];
 
