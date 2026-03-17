@@ -1,4 +1,7 @@
 export type AppEventMap = {
+	'world:color-filter-state-changed': {
+		mode: 'none' | 'grayscale' | 'blue-unlocked';
+	};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';
 	};

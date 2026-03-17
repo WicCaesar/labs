@@ -3,6 +3,7 @@ import { EventBus } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
+import { SCENE_KEYS } from './shared/constants/sceneKeys';
 
 const shuffled = <T,>(values: readonly T[]): T[] => {
 	const copy = [...values];
@@ -128,6 +129,9 @@ const OptionContent = ({
 };
 
 export const App = () => {
+	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
+	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked'>('none');
+
 	const [questionIndex, setQuestionIndex] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
 	const [removedOptionIds, setRemovedOptionIds] = useState<string[]>([]);
@@ -178,12 +182,28 @@ export const App = () => {
 	const selectedIsCorrect = selectedOptionId === correctOptionId;
 
 	useEffect(() => {
-		const game = StartGame('game-container');
+		const game = StartGame(
+			'game-container',
+			isDungeonMode ? SCENE_KEYS.ISOMETRIC_DUNGEON : SCENE_KEYS.QUIZ_GAME
+		);
 
 		return () => {
 			game.destroy(true);
 		};
-	}, []);
+	}, [isDungeonMode]);
+
+	useEffect(() => {
+		if (!isDungeonMode) {
+			setWorldFilterMode('none');
+			return;
+		}
+
+		setWorldFilterMode('grayscale');
+
+		return EventBus.on('world:color-filter-state-changed', ({ mode }) => {
+			setWorldFilterMode(mode);
+		});
+	}, [isDungeonMode]);
 
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
@@ -314,9 +334,53 @@ export const App = () => {
 	const skipLabel = `PULAR ${'⏭️'.repeat(progress.skipsRemaining)}`;
 	const skipDisabled = progress.skipsRemaining <= 0;
 	const help2Disabled = help2Used || selectedOptionId !== null || progress.isGameWon || isHelp2PanelOpen || isResolvingHelp2;
+	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
+
+	const worldFilterDefs = (
+		<svg className="color-filter-defs" aria-hidden="true" focusable="false">
+			<defs>
+				<filter id="world-filter-grayscale" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0.299 0.587 0.114 0 0
+							0.299 0.587 0.114 0 0
+							0.299 0.587 0.114 0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-blue-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0.299 0.587 0.114 0 0
+							0.299 0.587 0.114 0 0
+							0     0     1     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+			</defs>
+		</svg>
+	);
+
+	if (isDungeonMode) {
+		return (
+			<>
+				{worldFilterDefs}
+				<main className={`dungeon-layout ${worldFilterClass}`.trim()} aria-label="Isometric Dungeon">
+					<div id="game-container" className="phaser-host is-visible" />
+				</main>
+			</>
+		);
+	}
 
 	return (
-		<main className="quiz-layout" aria-label="Vitrolinha do Tempo">
+		<>
+			{worldFilterDefs}
+			<main className={`quiz-layout ${worldFilterClass}`.trim()} aria-label="Vitrolinha do Tempo">
 			<div id="game-container" className="phaser-host" aria-hidden="true" />
 
 			<header className="question-panel" role="region" aria-labelledby="question-title">
@@ -472,6 +536,7 @@ export const App = () => {
 					</div>
 				</div>
 			) : null}
-		</main>
+			</main>
+		</>
 	);
 };

@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { questionBank, SEGMENT_PRIZE_RANGES, type Segment } from '../../data/questionBank';
 import { EventBus } from '../../shared/events/EventBus';
+import { SCENE_KEYS } from '../../shared/constants/sceneKeys';
 
 export class Game extends Scene {
     private questionIndex = 0;
@@ -34,7 +35,7 @@ export class Game extends Scene {
     private readonly unsubscribeHandlers: Array<() => void> = [];
 
     constructor() {
-        super('Game');
+        super(SCENE_KEYS.QUIZ_GAME);
 
         questionBank.forEach((question, index) => {
             this.indicesBySegment[question.segment].push(index);

@@ -25,12 +25,43 @@ textarea {
     align-items: flex-start;
 }
 
+.color-filter-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.world-filter-grayscale {
+    filter: url(#world-filter-grayscale);
+}
+
+.world-filter-blue-unlocked {
+    filter: url(#world-filter-blue-unlocked);
+}
+
 .phaser-host {
     position: absolute;
     width: 1px;
     height: 1px;
     opacity: 0;
     pointer-events: none;
+    overflow: hidden;
+}
+
+.dungeon-layout {
+    width: 100%;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 20%, #23333b 0%, #0f1518 60%, #070a0c 100%);
+}
+
+.phaser-host.is-visible {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    opacity: 1;
+    pointer-events: auto;
     overflow: hidden;
 }
 
