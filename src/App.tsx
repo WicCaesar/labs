@@ -130,7 +130,15 @@ const OptionContent = ({
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
-	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked'>('none');
+	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked'>('none');
+	const [dungeonHud, setDungeonHud] = useState({
+		level: 1 as 1 | 2,
+		status: 'Dungeon is in grayscale. Find the wandering penguin.',
+		hint: 'Controls: WASD/Arrows + E to interact',
+		objective: 'Unlock blue.',
+		canInteract: false,
+		state: 'level-one-hunt-blue' as 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete'
+	});
 
 	const [questionIndex, setQuestionIndex] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -200,9 +208,18 @@ export const App = () => {
 
 		setWorldFilterMode('grayscale');
 
-		return EventBus.on('world:color-filter-state-changed', ({ mode }) => {
+		const unsubscribeWorld = EventBus.on('world:color-filter-state-changed', ({ mode }) => {
 			setWorldFilterMode(mode);
 		});
+
+		const unsubscribeHud = EventBus.on('dungeon:hud-state-changed', (hudState) => {
+			setDungeonHud(hudState);
+		});
+
+		return () => {
+			unsubscribeWorld();
+			unsubscribeHud();
+		};
 	}, [isDungeonMode]);
 
 	useEffect(() => {
@@ -362,6 +379,18 @@ export const App = () => {
 						"
 					/>
 				</filter>
+
+				<filter id="world-filter-red-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							1     0     0     0 0
+							0.299 0.587 0.114 0 0
+							0.299 0.587 0.114 0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
 			</defs>
 		</svg>
 	);
@@ -372,6 +401,14 @@ export const App = () => {
 				{worldFilterDefs}
 				<main className={`dungeon-layout ${worldFilterClass}`.trim()} aria-label="Isometric Dungeon">
 					<div id="game-container" className="phaser-host is-visible" />
+					<section className="dungeon-hud" aria-live="polite">
+						<p className="dungeon-hud-level">Level {dungeonHud.level}</p>
+						<p className="dungeon-hud-status">{dungeonHud.status}</p>
+						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
+						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
+						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
+						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interaction available</span> : null}
+					</section>
 				</main>
 			</>
 		);

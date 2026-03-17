@@ -1,6 +1,14 @@
 export type AppEventMap = {
 	'world:color-filter-state-changed': {
-		mode: 'none' | 'grayscale' | 'blue-unlocked';
+		mode: 'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked';
+	};
+	'dungeon:hud-state-changed': {
+		level: 1 | 2;
+		status: string;
+		hint: string;
+		objective: string;
+		canInteract: boolean;
+		state: 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete';
 	};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';
@@ -9,22 +17,22 @@ export type AppEventMap = {
 		questionId: string;
 		optionId: string;
 		isCorrect: boolean;
-		segment: 1 | 2 | 3 | 4;
+		segment: 1 | 2 | 3 | 4 | 5;
 	};
 	'quiz:question-index-changed': {
 		questionIndex: number;
 	};
 	'quiz:question-changed': {
 		questionId: string;
-		segment: 1 | 2 | 3 | 4;
+		segment: 1 | 2 | 3 | 4 | 5;
 	};
 	'quiz:feedback': {
 		message: string;
 		tone: 'success' | 'error' | 'info';
 	};
 	'quiz:progress-state-changed': {
-		activeSegment: 1 | 2 | 3 | 4;
-		clearedSegments: Array<1 | 2 | 3 | 4>;
+		activeSegment: 1 | 2 | 3 | 4 | 5;
+		clearedSegments: Array<1 | 2 | 3 | 4 | 5>;
 		guaranteedPrize: number;
 		currentQuestionPrize: number;
 		canAdvanceByAnswer: boolean;
