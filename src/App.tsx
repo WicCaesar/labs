@@ -242,7 +242,15 @@ export const App = () => {
 	};
 
 	const stopAnswerSelection = (event: SyntheticEvent<HTMLElement>) => {
-		event.stopPropagation();
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) {
+			return;
+		}
+
+		const isInteractiveMediaControl = target.closest('audio, summary, details, input, button, select, textarea');
+		if (isInteractiveMediaControl) {
+			event.stopPropagation();
+		}
 	};
 
 	const goNextQuestion = () => {
