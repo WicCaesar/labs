@@ -7,6 +7,13 @@ export type DungeonMarker = {
 	position: Vec2;
 };
 
+export type DungeonPushBlockKind = 'step' | 'slide';
+
+export type DungeonPushBlockSpawn = {
+	kind: DungeonPushBlockKind;
+	position: Vec2;
+};
+
 export type ParsedDungeonMap = {
 	map: number[][];
 	width: number;
@@ -16,6 +23,7 @@ export type ParsedDungeonMap = {
 	enemyNpcSpawns: Vec2[];
 	exitTile: Vec2 | null;
 	markers: DungeonMarker[];
+	pushBlocks: DungeonPushBlockSpawn[];
 };
 
 const WALKABLE = 0;
@@ -54,6 +62,7 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 	const friendlyNpcSpawns: Vec2[] = [];
 	const enemyNpcSpawns: Vec2[] = [];
 	const markers: DungeonMarker[] = [];
+	const pushBlocks: DungeonPushBlockSpawn[] = [];
 
 	for (let y = 0; y < sourceRows.length; y += 1) {
 		const row: number[] = [];
@@ -93,6 +102,20 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 						position: { x, y }
 					});
 					break;
+				case 'b':
+					row.push(WALKABLE);
+					pushBlocks.push({
+						kind: 'step',
+						position: { x, y }
+					});
+					break;
+				case 's':
+					row.push(WALKABLE);
+					pushBlocks.push({
+						kind: 'slide',
+						position: { x, y }
+					});
+					break;
 				default:
 					throw new Error(`[${mapName}] unsupported symbol '${symbol}' at (${x}, ${y}).`);
 			}
@@ -112,6 +135,7 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 		friendlyNpcSpawns,
 		enemyNpcSpawns,
 		exitTile,
-		markers
+		markers,
+		pushBlocks
 	};
 }

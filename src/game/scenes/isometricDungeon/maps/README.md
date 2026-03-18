@@ -21,6 +21,8 @@ This folder contains plain-text dungeon maps. You can edit them without touching
 - `E`: Enemy NPC spawn (walkable tile)
 - `S`: Stairs/exit marker (walkable tile)
 - `i`: Generic interactable marker (walkable tile)
+- `b`: Push block (moves exactly 1 tile when pushed)
+- `s`: Sliding block (keeps moving until colliding)
 
 ## Comments and spacing
 
@@ -47,6 +49,8 @@ xxxxxxxx
 - Spawn points and objects are extracted by the parser and consumed by level config.
 - The isometric renderer projects this grid to isometric view automatically.
 - Interactable marker (`i`): player can press `E` near the marker to trigger an in-game interaction event. The UI receives this via EventBus and shows a message toast.
+- Push block (`b`): when player presses `E` while facing it, the block moves 1 tile if space is free.
+- Sliding block (`s`): when pushed, moves continuously in facing direction until it collides with a wall/object/block.
 - In level 3, a friendly NPC (`N`) is used for the final segment-2 quiz that unlocks yellow (implemented as green channel restoration), returning the game to full RGB when blue + red are already unlocked.
 
 ## Common mistakes

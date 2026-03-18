@@ -1,5 +1,5 @@
 import type { Vec2 } from './types';
-import { parseDungeonMap, type DungeonMarker } from './dungeonMapParser';
+import { parseDungeonMap, type DungeonMarker, type DungeonPushBlockSpawn } from './dungeonMapParser';
 import defaultLevelMapRaw from './maps/default.level.map.txt?raw';
 import secondLevelMapRaw from './maps/second.level.map.txt?raw';
 import thirdLevelMapRaw from './maps/third.level.map.txt?raw';
@@ -42,6 +42,7 @@ export type DungeonLevelConfig = {
 	exitTile: Vec2 | null;
 	exitLabel: string | null;
 	markers: DungeonMarker[];
+	pushBlocks: DungeonPushBlockSpawn[];
 };
 
 export type DungeonInteractableMarker = Extract<DungeonMarker, { type: 'interactable' }>;
@@ -88,7 +89,8 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcRole: levelOneNpc.npcRole,
 			exitTile: levelOneMap.exitTile,
 			exitLabel: levelOneMap.exitTile ? 'Descend' : null,
-			markers: levelOneMap.markers
+			markers: levelOneMap.markers,
+			pushBlocks: levelOneMap.pushBlocks
 		},
 		[DUNGEON_LEVEL.TWO]: {
 			id: DUNGEON_LEVEL.TWO,
@@ -100,7 +102,8 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcRole: levelTwoNpc.npcRole,
 			exitTile: levelTwoMap.exitTile,
 			exitLabel: levelTwoMap.exitTile ? 'Ascend' : null,
-			markers: levelTwoMap.markers
+			markers: levelTwoMap.markers,
+			pushBlocks: levelTwoMap.pushBlocks
 		},
 		[DUNGEON_LEVEL.THREE]: {
 			id: DUNGEON_LEVEL.THREE,
@@ -112,7 +115,8 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcRole: levelThreeNpc.npcRole,
 			exitTile: null,
 			exitLabel: null,
-			markers: levelThreeMap.markers
+			markers: levelThreeMap.markers,
+			pushBlocks: levelThreeMap.pushBlocks
 		}
 	};
 }

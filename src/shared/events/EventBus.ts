@@ -32,7 +32,7 @@ export type AppEventMap = {
 	};
 	'dungeon:interactable-activated': {
 		level: 1 | 2 | 3;
-		type: 'interactable';
+		type: 'interactable' | 'push-block';
 		position: { x: number; y: number };
 		message: string;
 		durationMs: number;

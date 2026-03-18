@@ -4,6 +4,13 @@ import { EventBus } from '../../shared/events/EventBus';
 import { DungeonRenderer } from './isometricDungeon/DungeonRenderer';
 import { INTERACTION_DISTANCE, TILE_HEIGHT, TILE_WIDTH } from './isometricDungeon/constants';
 import {
+	findPushBlockAtTile,
+	getPushDeltaFromFacing,
+	spawnPushBlock,
+	syncPushBlockSprite,
+	type PushBlockState
+} from './isometricDungeon/pushBlocks';
+import {
 	createLevelConfig,
 	DUNGEON_LEVEL,
 	type DungeonHudState,
@@ -20,6 +27,8 @@ import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement }
 export class IsometricDungeon extends Phaser.Scene {
 	private readonly map: number[][] = [];
 
+	private readonly collisionMap: number[][] = [];
+
 	private levels!: Record<DungeonLevelId, DungeonLevelConfig>;
 
 	private currentLevel: DungeonLevelId = DUNGEON_LEVEL.ONE;
@@ -35,6 +44,8 @@ export class IsometricDungeon extends Phaser.Scene {
 	private exitMarker?: Phaser.GameObjects.Ellipse;
 
 	private markerVisuals: Phaser.GameObjects.Ellipse[] = [];
+
+	private readonly pushBlocks: PushBlockState[] = [];
 
 	private readonly activatedInteractableKeys = new Set<string>();
 
@@ -145,17 +156,18 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
 		const move = this.getMovementInput();
-		updatePlayerMovement(this.player, move, delta, this.map, this.mapWidth, this.mapHeight);
+		this.rebuildCollisionMap();
+		updatePlayerMovement(this.player, move, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 		syncPlayerSprite(this.player, isoToWorld);
 		const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
 		const isEnemyLevel = this.levels[this.currentLevel].npcRole === 'enemy';
 		if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
-			updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.map, this.mapWidth, this.mapHeight);
+			updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 			this.handleEnemyTouchDamage();
 		} else {
-			updateNpcMovement(this.npc, delta, this.map, this.mapWidth, this.mapHeight);
+			updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 		}
 
 		syncNpcSprite(this.npc, isoToWorld);
@@ -207,6 +219,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		if (this.npc && this.npc.sprite) {
 			this.npc.sprite.destroy();
 		}
+		this.pushBlocks.forEach((block) => block.sprite.destroy());
+		this.pushBlocks.length = 0;
 
 		const spawn = this.ensureWalkable(level.playerSpawn);
 		this.player = spawnPlayer(this, spawn, isoToWorld);
@@ -217,6 +231,12 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.npc = spawnNpc(this, npcSpawn, isoToWorld);
 		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
 		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+
+		for (const [index, spawn] of level.pushBlocks.entries()) {
+			const blockId = `${this.currentLevel}-${spawn.kind}-${spawn.position.x}-${spawn.position.y}-${index}`;
+			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
+		}
+		this.rebuildCollisionMap();
 		this.renderInteractableMarkers();
 	}
 
@@ -255,6 +275,10 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private handleInteraction() {
+		if (this.tryPushBlockInFacingDirection()) {
+			return;
+		}
+
 		if (this.state === 'level-one-hunt-blue') {
 			const canDescend = this.isNearLevelExit();
 			if (canDescend) {
@@ -465,6 +489,156 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.cameras.main.shake(140, 0.008);
 	}
 
+	private rebuildCollisionMap() {
+		this.collisionMap.length = 0;
+		for (let y = 0; y < this.mapHeight; y += 1) {
+			this.collisionMap.push([...this.map[y]]);
+		}
+
+		for (const block of this.pushBlocks) {
+			if (block.position.y < 0 || block.position.y >= this.mapHeight || block.position.x < 0 || block.position.x >= this.mapWidth) {
+				continue;
+			}
+
+			this.collisionMap[block.position.y][block.position.x] = 1;
+		}
+	}
+
+	private getRoundedPlayerTile(): Vec2 {
+		return {
+			x: Math.round(this.player.gridPos.x),
+			y: Math.round(this.player.gridPos.y)
+		};
+	}
+
+	private isTileInsideMap(tileX: number, tileY: number): boolean {
+		return tileX >= 0 && tileY >= 0 && tileX < this.mapWidth && tileY < this.mapHeight;
+	}
+
+	private isTileBlockedForPush(tileX: number, tileY: number, ignoredBlockId?: string): boolean {
+		if (!this.isTileInsideMap(tileX, tileY)) {
+			return true;
+		}
+
+		if (this.map[tileY][tileX] === 1) {
+			return true;
+		}
+
+		for (const block of this.pushBlocks) {
+			if (block.id === ignoredBlockId) {
+				continue;
+			}
+
+			if (block.position.x === tileX && block.position.y === tileY) {
+				return true;
+			}
+		}
+
+		if (this.npc.sprite.visible) {
+			const npcTile = {
+				x: Math.round(this.npc.gridPos.x),
+				y: Math.round(this.npc.gridPos.y)
+			};
+			if (npcTile.x === tileX && npcTile.y === tileY) {
+				return true;
+			}
+		}
+
+		const level = this.levels[this.currentLevel];
+		if (level.exitTile && level.exitTile.x === tileX && level.exitTile.y === tileY) {
+			return true;
+		}
+
+		for (const marker of level.markers) {
+			if (marker.position.x === tileX && marker.position.y === tileY) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private tryPushBlockInFacingDirection(): boolean {
+		if (this.pushBlocks.length === 0) {
+			return false;
+		}
+
+		const playerTile = this.getRoundedPlayerTile();
+		const pushDelta = getPushDeltaFromFacing(this.player.facing);
+		const frontTile = {
+			x: playerTile.x + pushDelta.x,
+			y: playerTile.y + pushDelta.y
+		};
+
+		const block = findPushBlockAtTile(this.pushBlocks, frontTile.x, frontTile.y);
+		if (!block) {
+			return false;
+		}
+
+		let destination: Vec2 | null = null;
+		if (block.kind === 'step') {
+			const nextTile = {
+				x: block.position.x + pushDelta.x,
+				y: block.position.y + pushDelta.y
+			};
+
+			if (!this.isTileBlockedForPush(nextTile.x, nextTile.y, block.id)) {
+				destination = nextTile;
+			}
+		} else {
+			let cursor = { ...block.position };
+			while (true) {
+				const nextTile = {
+					x: cursor.x + pushDelta.x,
+					y: cursor.y + pushDelta.y
+				};
+
+				if (this.isTileBlockedForPush(nextTile.x, nextTile.y, block.id)) {
+					break;
+				}
+
+				cursor = nextTile;
+			}
+
+			if (cursor.x !== block.position.x || cursor.y !== block.position.y) {
+				destination = cursor;
+			}
+		}
+
+		if (!destination) {
+			EventBus.emit('dungeon:interactable-activated', {
+				level: this.currentLevel,
+				type: 'push-block',
+				position: { ...block.position },
+				message: 'The block cannot move in that direction.',
+				durationMs: 1700
+			});
+			return true;
+		}
+
+		block.position = destination;
+		syncPushBlockSprite(block, (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY));
+		this.rebuildCollisionMap();
+
+		EventBus.emit('dungeon:interactable-activated', {
+			level: this.currentLevel,
+			type: 'push-block',
+			position: { ...destination },
+			message: block.kind === 'slide'
+				? 'Sliding block moved until collision.'
+				: 'Block pushed one tile.',
+			durationMs: 1700
+		});
+
+		return true;
+	}
+
+	private isFacingPushableBlock(): boolean {
+		const playerTile = this.getRoundedPlayerTile();
+		const pushDelta = getPushDeltaFromFacing(this.player.facing);
+		return findPushBlockAtTile(this.pushBlocks, playerTile.x + pushDelta.x, playerTile.y + pushDelta.y) !== null;
+	}
+
 	private ensureWalkable(tile: Vec2): Vec2 {
 		if (isWalkable(this.map, tile.x, tile.y, this.mapWidth, this.mapHeight)) {
 			return tile;
@@ -605,6 +779,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
 		const nearExit = this.isNearLevelExit();
 		const nearInteractable = this.getNearestInteractable() !== null;
+		const canPushFacingBlock = this.isFacingPushableBlock();
 
 		if (this.state === 'level-one-hunt-blue') {
 			if (this.isDungeonQuizActive && this.activeDungeonQuizId === 'blue') {
@@ -625,6 +800,8 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Dungeon is in grayscale. Talk to the penguin to start the blue quiz.',
 				hint: nearExit
 					? 'Press E to descend now, or press E near the penguin to take the blue quiz first.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you.'
 					: nearNpc
 						? 'Press E to start a 3-question quiz. You must score 3/3 to unlock blue.'
 						: nearInteractable
@@ -633,7 +810,7 @@ export class IsometricDungeon extends Phaser.Scene {
 							? `Last quiz score: ${this.lastBlueQuizCorrectAnswers}/3. Talk to the penguin to retry.`
 							: 'Find the center hole to descend, or find the penguin and pass the quiz to unlock blue.',
 				objective: 'Optional: pass a 3-question quiz to unlock blue. Main path: descend to level 2.',
-				canInteract: nearNpc || nearExit || nearInteractable
+				canInteract: nearNpc || nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
 		}
@@ -645,11 +822,13 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Blue restored. The descent hole is now active.',
 				hint: nearExit
 					? 'Press E to descend to the next level.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you.'
 					: nearInteractable
 						? 'Press E near the marker to inspect it.'
 					: 'Find the dark hole near the center of the dungeon.',
 				objective: 'Descend to level 2.',
-				canInteract: nearExit || nearInteractable
+				canInteract: nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
 		}
@@ -661,11 +840,13 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'The penguin is hostile now. Stay mobile.',
 				hint: nearNpc
 					? 'Press E near the enemy penguin to strike and finish it.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you and open a safer path.'
 					: nearInteractable
 						? 'Press E near the marker to inspect it while avoiding the enemy.'
 					: 'Avoid contact. Close in only when you are ready to attack.',
 				objective: 'Defeat the enemy penguin to unlock red.',
-				canInteract: nearNpc || nearInteractable
+				canInteract: nearNpc || nearInteractable || canPushFacingBlock
 			});
 			return;
 		}
@@ -677,11 +858,13 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Red restored. The next stairs are now active.',
 				hint: nearExit
 					? 'Press E to descend to level 3 and face the final quiz.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you.'
 					: nearInteractable
 						? 'Press E near the marker to inspect it.'
 						: 'Find the marked stairs to proceed to level 3.',
 				objective: 'Reach level 3 and unlock yellow (green channel).',
-				canInteract: nearExit || nearInteractable
+				canInteract: nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
 		}
@@ -705,13 +888,15 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Final challenge: talk to the penguin to unlock yellow.',
 				hint: nearNpc
 					? 'Press E to start a 3-question quiz from segment 2. You must score 3/3.'
+					: canPushFacingBlock
+						? 'Press E to push puzzle blocks and clear the route.'
 					: nearInteractable
 						? 'Press E near the marker to inspect it.'
 						: this.lastYellowQuizCorrectAnswers > 0
 							? `Last final quiz score: ${this.lastYellowQuizCorrectAnswers}/3. Talk to the penguin to retry.`
 							: 'Find the penguin and pass the final quiz.',
 				objective: 'Unlock yellow (green channel) to restore full RGB.',
-				canInteract: nearNpc || nearInteractable
+				canInteract: nearNpc || nearInteractable || canPushFacingBlock
 			});
 			return;
 		}
@@ -730,7 +915,7 @@ export class IsometricDungeon extends Phaser.Scene {
 					? 'Green restored. Press E near a marker to inspect it while you hunt missing channels.'
 					: 'Green restored. Return to unlock remaining channels if needed.'),
 			objective: 'Completed.',
-			canInteract: nearInteractable
+			canInteract: nearInteractable || canPushFacingBlock
 		});
 	}
 
@@ -768,6 +953,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.drawDungeon();
 		this.updateLevelMarker();
 		this.renderInteractableMarkers();
+		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
 		syncNpcSprite(this.npc, isoToWorld);
 	}
