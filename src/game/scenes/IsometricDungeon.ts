@@ -227,23 +227,15 @@ export class IsometricDungeon extends Phaser.Scene {
 		const up = this.cursors.up.isDown || this.wasd.up.isDown;
 		const down = this.cursors.down.isDown || this.wasd.down.isDown;
 
-		let x = 0;
-		let y = 0;
+		// Convert keyboard intent from screen space into isometric grid deltas.
+		// This keeps controls intuitive: W = up on screen, D = right on screen, etc.
+		const screenX = (right ? 1 : 0) - (left ? 1 : 0);
+		const screenY = (down ? 1 : 0) - (up ? 1 : 0);
 
-		if (left) {
-			x -= 1;
-		}
-		if (right) {
-			x += 1;
-		}
-		if (up) {
-			y -= 1;
-		}
-		if (down) {
-			y += 1;
-		}
-
-		return { x, y };
+		return {
+			x: screenX + screenY,
+			y: screenY - screenX
+		};
 	}
 
 	private handleInteraction() {

@@ -49,28 +49,28 @@ export function directionFromVector(direction: Vec2): DirectionKey {
 	const angle = Phaser.Math.RadToDeg(Math.atan2(direction.y, direction.x));
 
 	if (angle >= -22.5 && angle < 22.5) {
-		return 'east';
-	}
-	if (angle >= 22.5 && angle < 67.5) {
-		return 'south-east';
-	}
-	if (angle >= 67.5 && angle < 112.5) {
-		return 'south';
-	}
-	if (angle >= 112.5 && angle < 157.5) {
-		return 'south-west';
-	}
-	if (angle >= 157.5 || angle < -157.5) {
-		return 'west';
-	}
-	if (angle >= -157.5 && angle < -112.5) {
-		return 'north-west';
-	}
-	if (angle >= -112.5 && angle < -67.5) {
-		return 'north';
-	}
+        return 'east';
+    }
+    if (angle >= 22.5 && angle < 67.5) {
+        return 'south-east';
+    }
+    if (angle >= 67.5 && angle < 112.5) {
+        return 'south';
+    }
+    if (angle >= 112.5 && angle < 157.5) {
+        return 'south-west';
+    }
+    if (angle >= 157.5 || angle < -157.5) {
+        return 'west';
+    }
+    if (angle >= -157.5 && angle < -112.5) {
+        return 'north-west';
+    }
+    if (angle >= -112.5 && angle < -67.5) {
+        return 'north';
+    }
 
-	return 'north-east';
+    return 'north-east';
 }
 
 export function findFirstWalkableTile(map: number[][], worldWidth: number, worldHeight: number): Vec2 {
@@ -114,4 +114,13 @@ export function randomDirection(): Vec2 {
 
 export function distanceBetween(a: Vec2, b: Vec2): number {
 	return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+// Convert a normalized isometric-grid direction into screen-space direction.
+// This keeps sprite facing aligned with what players see on screen.
+export function projectIsoDirectionToScreen(direction: Vec2): Vec2 {
+	return {
+		x: direction.x - direction.y,
+		y: direction.x + direction.y
+	};
 }

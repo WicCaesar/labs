@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { DIRECTION_TO_FRAME, PLAYER_SCALE, PLAYER_SPEED, TILE_HEIGHT } from './constants';
-import { directionFromVector, tryMoveEntity } from './navigation';
+import { directionFromVector, projectIsoDirectionToScreen, tryMoveEntity } from './navigation';
 import type { DirectionKey, Vec2 } from './types';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
@@ -47,7 +47,10 @@ export function updatePlayerMovement(
 	};
 
 	tryMoveEntity(player.gridPos, norm, distance, map, worldWidth, worldHeight);
-	player.facing = directionFromVector(norm);
+
+	// Facing should reflect on-screen direction, not raw grid-space direction.
+	const screenDirection = projectIsoDirectionToScreen(norm);
+	player.facing = directionFromVector(screenDirection);
 	player.sprite.setTexture(DIRECTION_TO_FRAME[player.facing]);
 }
 
