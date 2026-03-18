@@ -10,6 +10,15 @@ export type AppEventMap = {
 		canInteract: boolean;
 		state: 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete';
 	};
+	'dungeon:blue-quiz-requested': {
+		questionCount: number;
+	};
+	'ui:dungeon-blue-quiz-finished': {
+		passed: boolean;
+		correctAnswers: number;
+		totalQuestions: number;
+	};
+	'ui:dungeon-blue-quiz-cancelled': {};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';
 	};

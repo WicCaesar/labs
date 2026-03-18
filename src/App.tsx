@@ -1,58 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { EventBus } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
 import { SCENE_KEYS } from './shared/constants/sceneKeys';
-
-const shuffled = <T,>(values: readonly T[]): T[] => {
-	const copy = [...values];
-
-	for (let i = copy.length - 1; i > 0; i -= 1) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[copy[i], copy[j]] = [copy[j], copy[i]];
-	}
-
-	return copy;
-};
+import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
+import { HELP2_CARD_META } from './ui/hooks/quizAssist';
+import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
 
 const dollars = new Intl.NumberFormat('en-US', {
 	style: 'currency',
 	currency: 'USD',
 	maximumFractionDigits: 0
 });
-
-type Help2CardValue = 0 | 1 | 2 | 3;
-
-type Help2Card = {
-	id: string;
-	value: Help2CardValue;
-};
-
-const HELP2_CARD_META: Record<Help2CardValue, { title: string; suit: string; removed: number }> = {
-	0: { title: 'Rei', suit: '♣', removed: 0 },
-	1: { title: 'Ás', suit: '♠', removed: 1 },
-	2: { title: 'Dois', suit: '♦', removed: 2 },
-	3: { title: 'Três', suit: '♥', removed: 3 }
-};
-
-const getHelp2CardValues = (optionCount: number): Help2CardValue[] => {
-	const values: Help2CardValue[] = [0];
-
-	if (optionCount >= 2) {
-		values.push(1);
-	}
-
-	if (optionCount >= 3) {
-		values.push(2);
-	}
-
-	if (optionCount >= 4) {
-		values.push(3);
-	}
-
-	return values;
-};
 
 const MediaBlock = ({
 	media,
@@ -139,17 +99,24 @@ export const App = () => {
 		canInteract: false,
 		state: 'level-one-hunt-blue' as 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete'
 	});
+	const {
+		dungeonQuiz,
+		dungeonQuizHeadingRef,
+		dungeonQuizCurrentQuestion,
+		dungeonQuizProgressLabel,
+		dungeonQuizVisibleOptions,
+		dungeonSkipLabel,
+		dungeonSkipDisabled,
+		dungeonHelp2Disabled,
+		onDungeonQuizOptionSelect,
+		onDungeonQuizOptionKeyDown,
+		skipDungeonQuizQuestion,
+		openDungeonQuizHelp2,
+		revealDungeonQuizHelp2Card
+	} = useDungeonQuizFlow(isDungeonMode);
 
 	const [questionIndex, setQuestionIndex] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
-	const [removedOptionIds, setRemovedOptionIds] = useState<string[]>([]);
-	const [help2Deck, setHelp2Deck] = useState<Help2Card[]>([]);
-	const [isHelp2PanelOpen, setIsHelp2PanelOpen] = useState(false);
-	const [revealedHelp2CardId, setRevealedHelp2CardId] = useState<string | null>(null);
-	const [help2Used, setHelp2Used] = useState(false);
-	const [isResolvingHelp2, setIsResolvingHelp2] = useState(false);
-	const [feedback, setFeedback] = useState('Select an option to test the mock flow.');
-	const help2ResolveTimeoutRef = useRef<number | null>(null);
 	const [progress, setProgress] = useState<{
 		activeSegment: Segment;
 		clearedSegments: Segment[];
@@ -174,20 +141,28 @@ export const App = () => {
 		return getNormalizedOptions(question);
 	}, [question]);
 
-	const shuffledOptions = useMemo(() => {
-		return shuffled(normalizedOptions);
-	}, [normalizedOptions]);
-
-	const visibleOptions = useMemo(() => {
-		return shuffledOptions.filter((option) => !removedOptionIds.includes(option.id));
-	}, [removedOptionIds, shuffledOptions]);
-
 	const correctOptionId = getCorrectOptionId(question);
+
+	const {
+		visibleOptions,
+		help2Deck,
+		isHelp2PanelOpen,
+		revealedHelp2CardId,
+		isResolvingHelp2,
+		help2Disabled,
+		openHelp2,
+		revealHelp2Card
+	} = useStandaloneQuizAssistFlow({
+		questionId: question.id,
+		normalizedOptions,
+		correctOptionId,
+		isAnswerLocked: selectedOptionId !== null,
+		isGameWon: progress.isGameWon
+	});
+
 	const questionPromptText = question.prompt.kind === 'text'
 		? null
 		: (question.promptText ?? 'Observe o que está abaixo e escolha a resposta mais adequada.');
-
-	const selectedIsCorrect = selectedOptionId === correctOptionId;
 
 	useEffect(() => {
 		const game = StartGame(
@@ -222,14 +197,11 @@ export const App = () => {
 		};
 	}, [isDungeonMode]);
 
+
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
 			setQuestionIndex(nextIndex % questionBank.length);
 			setSelectedOptionId(null);
-		});
-
-		const unsubscribeFeedback = EventBus.on('quiz:feedback', ({ message }) => {
-			setFeedback(message);
 		});
 
 		const unsubscribeProgress = EventBus.on('quiz:progress-state-changed', (state) => {
@@ -238,30 +210,7 @@ export const App = () => {
 
 		return () => {
 			unsubscribeIndex();
-			unsubscribeFeedback();
 			unsubscribeProgress();
-		};
-	}, []);
-
-	useEffect(() => {
-		setRemovedOptionIds([]);
-		setHelp2Deck([]);
-		setIsHelp2PanelOpen(false);
-		setRevealedHelp2CardId(null);
-		setHelp2Used(false);
-		setIsResolvingHelp2(false);
-
-		if (help2ResolveTimeoutRef.current !== null) {
-			window.clearTimeout(help2ResolveTimeoutRef.current);
-			help2ResolveTimeoutRef.current = null;
-		}
-	}, [question.id]);
-
-	useEffect(() => {
-		return () => {
-			if (help2ResolveTimeoutRef.current !== null) {
-				window.clearTimeout(help2ResolveTimeoutRef.current);
-			}
 		};
 	}, []);
 
@@ -302,55 +251,8 @@ export const App = () => {
 		});
 	};
 
-	const openHelp2 = () => {
-		if (help2Used || selectedOptionId || progress.isGameWon) {
-			return;
-		}
-
-		const values = shuffled(getHelp2CardValues(normalizedOptions.length));
-		const deck = values.map((value, idx) => ({
-			id: `${question.id}-help2-${idx}-${value}`,
-			value
-		}));
-
-		setHelp2Deck(deck);
-		setRevealedHelp2CardId(null);
-		setIsHelp2PanelOpen(true);
-	};
-
-	const revealHelp2Card = (card: Help2Card) => {
-		if (!isHelp2PanelOpen || revealedHelp2CardId) {
-			return;
-		}
-
-		setRevealedHelp2CardId(card.id);
-		setIsResolvingHelp2(true);
-		setHelp2Used(true);
-
-		help2ResolveTimeoutRef.current = window.setTimeout(() => {
-			const wrongVisibleOptions = visibleOptions.filter((option) => option.id !== correctOptionId);
-			const removableCount = Math.min(card.value, wrongVisibleOptions.length);
-			const removedIds = shuffled(wrongVisibleOptions)
-				.slice(0, removableCount)
-				.map((option) => option.id);
-
-			setRemovedOptionIds((prev) => [...prev, ...removedIds]);
-			setIsHelp2PanelOpen(false);
-			setIsResolvingHelp2(false);
-
-			setFeedback(
-				removedIds.length > 0
-					? `Essa carta remove ${removedIds.length} alternativa${removedIds.length > 1 ? 's' : ''}.`
-					: 'O rei de paus não retira nenhuma das alternativas.'
-			);
-
-			help2ResolveTimeoutRef.current = null;
-		}, 2500);
-	};
-
 	const skipLabel = `PULAR ${'⏭️'.repeat(progress.skipsRemaining)}`;
 	const skipDisabled = progress.skipsRemaining <= 0;
-	const help2Disabled = help2Used || selectedOptionId !== null || progress.isGameWon || isHelp2PanelOpen || isResolvingHelp2;
 	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
 
 	const worldFilterDefs = (
@@ -409,6 +311,159 @@ export const App = () => {
 						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
 						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interaction available</span> : null}
 					</section>
+
+					{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
+						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
+							<section className="dungeon-quiz-panel" aria-live="polite">
+								<header className="dungeon-quiz-header">
+									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>{dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}</h2>
+								</header>
+
+								<div className="dungeon-quiz-question">
+									<p className="question-prompt-text">
+										{dungeonQuizCurrentQuestion.prompt.kind === 'text'
+											? dungeonQuizCurrentQuestion.prompt.value
+											: (dungeonQuizCurrentQuestion.promptText ?? 'Observe the prompt and select the most suitable option.')}
+									</p>
+									{dungeonQuizCurrentQuestion.prompt.kind === 'text'
+										? null
+										: <MediaBlock media={dungeonQuizCurrentQuestion.prompt} />}
+								</div>
+
+								<section className="answers-grid" data-count={dungeonQuizVisibleOptions.length} aria-label="Dungeon quiz answers">
+									{dungeonQuizVisibleOptions.map((option, idx) => {
+										const isSelected = dungeonQuiz.selectedOptionId === option.id;
+										const isCorrect = option.id === dungeonQuizCurrentQuestion.correctOptionId;
+
+										const statusClass = dungeonQuiz.hasAnsweredCurrent
+											? isCorrect
+												? 'is-correct'
+												: isSelected
+													? 'is-wrong'
+													: ''
+											: '';
+
+										const isLastOdd = dungeonQuizVisibleOptions.length === 3 && idx === dungeonQuizVisibleOptions.length - 1;
+
+										if (option.content.kind === 'audio') {
+											return (
+												<div
+													key={option.id}
+													role="button"
+													tabIndex={0}
+													className={[
+														'answer-option-card',
+														'has-separate-controls',
+														statusClass,
+														isLastOdd ? 'is-last-odd' : ''
+													].filter(Boolean).join(' ')}
+													onClick={() => onDungeonQuizOptionSelect(option.id)}
+													onKeyDown={(event) => onDungeonQuizOptionKeyDown(event, option.id)}
+													aria-pressed={isSelected}
+													aria-disabled={dungeonQuiz.hasAnsweredCurrent}
+												>
+													<div
+														className="answer-option-media"
+														onClick={stopAnswerSelection}
+														onKeyDown={stopAnswerSelection}
+													>
+														<OptionContent option={option} includeSupplemental />
+													</div>
+												</div>
+											);
+										}
+
+										return (
+											<div
+												key={option.id}
+												className={[
+													'answer-option-card',
+													isLastOdd ? 'is-last-odd' : ''
+												].filter(Boolean).join(' ')}
+											>
+												<button
+													type="button"
+													className={['answer-button', statusClass].filter(Boolean).join(' ')}
+													onClick={() => onDungeonQuizOptionSelect(option.id)}
+													disabled={dungeonQuiz.hasAnsweredCurrent}
+													aria-pressed={isSelected}
+												>
+													<OptionContent option={option} />
+												</button>
+											</div>
+										);
+									})}
+								</section>
+
+								<nav className="actions-row" aria-label="Dungeon quiz helpers">
+									<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+									<button
+										type="button"
+										className="action-button"
+										onClick={openDungeonQuizHelp2}
+										disabled={dungeonHelp2Disabled}
+										aria-disabled={dungeonHelp2Disabled}
+									>
+										DISCOS
+									</button>
+									<button
+										type="button"
+										className="action-button"
+										onClick={skipDungeonQuizQuestion}
+										disabled={dungeonSkipDisabled}
+										aria-disabled={dungeonSkipDisabled}
+									>
+										{dungeonSkipLabel}
+									</button>
+								</nav>
+
+								{dungeonQuiz.isHelp2PanelOpen ? (
+									<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">
+										<div className="help2-panel">
+											<h2>Escolha um disco</h2>
+											<p>Os discos podem ajudar a eliminar alternativas erradas.</p>
+											<div className="help2-cards-grid">
+												{dungeonQuiz.help2Deck.map((card) => {
+													const isRevealed = dungeonQuiz.revealedHelp2CardId === card.id;
+													const meta = HELP2_CARD_META[card.value];
+
+													return (
+														<button
+															key={card.id}
+															type="button"
+															className={[
+																'help2-card',
+																isRevealed ? 'is-revealed' : 'is-facedown',
+																isRevealed ? `face-${card.value}` : ''
+															].filter(Boolean).join(' ')}
+															onClick={() => revealDungeonQuizHelp2Card(card)}
+															disabled={dungeonQuiz.isResolvingHelp2 && !isRevealed}
+															aria-disabled={dungeonQuiz.isResolvingHelp2 && !isRevealed}
+															aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Face-down card'}
+														>
+															{isRevealed ? (
+																<span className="help2-card-content">
+																	<strong>{meta.title}</strong>
+																	<span className="help2-card-suit">{meta.suit}</span>
+																	<small>
+																		{meta.removed === 0
+																			? 'Remove 0'
+																			: `Remove ${meta.removed}`}
+																	</small>
+																</span>
+															) : (
+																<span className="help2-card-back">?</span>
+															)}
+														</button>
+													);
+												})}
+											</div>
+										</div>
+									</div>
+								) : null}
+							</section>
+						</div>
+					) : null}
 				</main>
 			</>
 		);
@@ -429,7 +484,7 @@ export const App = () => {
 						Cleared {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'none'}
 					</span>
 					<span className="badge">
-						{progress.canAdvanceByAnswer ? 'Responda corretamente para avançar' : 'Praticar'}
+						{progress.canAdvanceByAnswer ? 'Valendo' : 'Treino'}
 					</span>
 					<span className="badge">{question.category}</span>
 				</div>
@@ -520,14 +575,6 @@ export const App = () => {
 					{skipLabel}
 				</button>
 			</nav>
-
-			<p className="feedback" aria-live="polite">
-				{progress.isGameWon
-					? 'Parabéns! Você ganhou! Você pode continuar jogando para aprender mais. 🏆'
-					: selectedOptionId
-						? (selectedIsCorrect ? 'Resposta exata! ✅' : 'Resposta errada. Tente de novo. ❌')
-						: feedback}
-			</p>
 
 			{isHelp2PanelOpen ? (
 				<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">

@@ -52,6 +52,14 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private redUnlocked = false;
 
+	private isBlueQuizActive = false;
+
+	private lastBlueQuizCorrectAnswers = 0;
+
+	private readonly blueQuizQuestionCount = 3;
+
+	private readonly unsubscribeHandlers: Array<() => void> = [];
+
 	private worldOffsetX = 0;
 
 	private worldOffsetY = 0;
@@ -93,11 +101,21 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.spawnActorsForLevel();
 		this.createInput();
 		this.createLevelMarker();
+		this.unsubscribeHandlers.push(
+			EventBus.on('ui:dungeon-blue-quiz-finished', ({ passed, correctAnswers }) => {
+				this.handleBlueQuizFinished(passed, correctAnswers);
+			}),
+			EventBus.on('ui:dungeon-blue-quiz-cancelled', () => {
+				this.handleBlueQuizCancelled();
+			})
+		);
 		EventBus.emit('world:color-filter-state-changed', { mode: 'grayscale' });
 		this.publishHudState();
 
 		this.scale.on('resize', this.handleResize, this);
 		this.events.once('shutdown', () => {
+			this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+			this.unsubscribeHandlers.length = 0;
 			this.emitHudState({
 				level: 1,
 				state: 'complete',
@@ -112,6 +130,11 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	update(_: number, delta: number) {
+		if (this.isBlueQuizActive) {
+			this.publishHudState();
+			return;
+		}
+
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
 		const move = this.getMovementInput();
 		updatePlayerMovement(this.player, move, delta, this.map, WORLD_WIDTH, WORLD_HEIGHT);
@@ -233,7 +256,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 			const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
 			if (nearNpc) {
-				this.unlockBlueChannel();
+				this.startBlueUnlockQuiz();
 			}
 			return;
 		}
@@ -263,6 +286,42 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.state = 'level-one-blue-unlocked';
 		EventBus.emit('world:color-filter-state-changed', { mode: 'blue-unlocked' });
 		this.cameras.main.flash(300, 90, 130, 255);
+	}
+
+	private startBlueUnlockQuiz() {
+		if (this.blueUnlocked || this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE) {
+			return;
+		}
+
+		this.isBlueQuizActive = true;
+		this.lastBlueQuizCorrectAnswers = 0;
+		EventBus.emit('dungeon:blue-quiz-requested', {
+			questionCount: this.blueQuizQuestionCount
+		});
+	}
+
+	private handleBlueQuizFinished(passed: boolean, correctAnswers: number) {
+		if (!this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
+			return;
+		}
+
+		this.isBlueQuizActive = false;
+		this.lastBlueQuizCorrectAnswers = correctAnswers;
+
+		if (passed) {
+			this.unlockBlueChannel();
+			return;
+		}
+
+		this.cameras.main.shake(130, 0.006);
+	}
+
+	private handleBlueQuizCancelled() {
+		if (!this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
+			return;
+		}
+
+		this.isBlueQuizActive = false;
 	}
 
 	private transitionToSecondLevel() {
@@ -360,16 +419,30 @@ export class IsometricDungeon extends Phaser.Scene {
 		const nearExit = this.isNearLevelExit();
 
 		if (this.state === 'level-one-hunt-blue') {
+			if (this.isBlueQuizActive) {
+				this.emitHudState({
+					level: 1,
+					state: this.state,
+					status: 'Quiz in progress: answer 3 questions to restore blue.',
+					hint: 'Complete the quiz overlay with keyboard or pointer. ESC closes the quiz.',
+					objective: 'Pass the 3-question quiz to unlock blue.',
+					canInteract: false
+				});
+				return;
+			}
+
 			this.emitHudState({
 				level: 1,
 				state: this.state,
-				status: 'Dungeon is in grayscale. Blue is optional for this run.',
+				status: 'Dungeon is in grayscale. Talk to the penguin to start the blue quiz.',
 				hint: nearExit
-					? 'Press E to descend now, or talk to the penguin first to unlock blue.'
+					? 'Press E to descend now, or press E near the penguin to take the blue quiz first.'
 					: nearNpc
-						? 'Press E to unlock blue, or head to the hole to skip blue.'
-						: 'Find the center hole to descend, or find the penguin to unlock blue first.',
-				objective: 'Optional: unlock blue. Main path: descend to level 2.',
+						? 'Press E to start a 3-question quiz. You must score 3/3 to unlock blue.'
+						: this.lastBlueQuizCorrectAnswers > 0
+							? `Last quiz score: ${this.lastBlueQuizCorrectAnswers}/3. Talk to the penguin to retry.`
+							: 'Find the center hole to descend, or find the penguin and pass the quiz to unlock blue.',
+				objective: 'Optional: pass a 3-question quiz to unlock blue. Main path: descend to level 2.',
 				canInteract: nearNpc || nearExit
 			});
 			return;
