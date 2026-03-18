@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS } from '../../shared/constants/sceneKeys';
 import { EventBus } from '../../shared/events/EventBus';
 import { DungeonRenderer } from './isometricDungeon/DungeonRenderer';
-import { INTERACTION_DISTANCE, TILE_HEIGHT, TILE_WIDTH, WORLD_HEIGHT, WORLD_WIDTH } from './isometricDungeon/constants';
+import { INTERACTION_DISTANCE, TILE_HEIGHT, TILE_WIDTH } from './isometricDungeon/constants';
 import {
 	createLevelConfig,
 	DUNGEON_LEVEL,
@@ -33,7 +33,11 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private exitMarker?: Phaser.GameObjects.Ellipse;
 
-	private level2RespawnPoint: Vec2 = { x: 2, y: WORLD_HEIGHT - 3 };
+	private level2RespawnPoint: Vec2 = { x: 2, y: 2 };
+
+	private mapWidth = 0;
+
+	private mapHeight = 0;
 
 	private lastPlayerHitAt = 0;
 
@@ -82,20 +86,11 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	create() {
 		this.dungeonRenderer = new DungeonRenderer(this);
-		this.levels = createLevelConfig(WORLD_WIDTH, WORLD_HEIGHT);
+		this.levels = createLevelConfig();
 		this.loadLevel(DUNGEON_LEVEL.ONE, true);
-
-		const mapPixelWidth = (WORLD_WIDTH + WORLD_HEIGHT) * (TILE_WIDTH / 2);
-		const mapPixelHeight = (WORLD_WIDTH + WORLD_HEIGHT) * (TILE_HEIGHT / 2);
 		this.worldOffsetX = this.scale.width * 0.5;
 		this.worldOffsetY = this.scale.height * 0.18;
-
-		this.cameras.main.setBounds(
-			this.worldOffsetX - mapPixelWidth * 0.5 - TILE_WIDTH,
-			this.worldOffsetY - TILE_HEIGHT,
-			mapPixelWidth + TILE_WIDTH * 2,
-			mapPixelHeight + TILE_HEIGHT * 3
-		);
+		this.updateCameraBoundsForCurrentMap();
 
 		this.drawDungeon();
 		this.spawnActorsForLevel();
@@ -137,16 +132,17 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
 		const move = this.getMovementInput();
-		updatePlayerMovement(this.player, move, delta, this.map, WORLD_WIDTH, WORLD_HEIGHT);
+		updatePlayerMovement(this.player, move, delta, this.map, this.mapWidth, this.mapHeight);
 		syncPlayerSprite(this.player, isoToWorld);
 		const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
-		if (this.state === 'level-two-hunt-red' && !this.redUnlocked) {
-			updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.map, WORLD_WIDTH, WORLD_HEIGHT);
+		const isEnemyLevel = this.levels[this.currentLevel].npcRole === 'enemy';
+		if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
+			updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.map, this.mapWidth, this.mapHeight);
 			this.handleEnemyTouchDamage();
 		} else {
-			updateNpcMovement(this.npc, delta, this.map, WORLD_WIDTH, WORLD_HEIGHT);
+			updateNpcMovement(this.npc, delta, this.map, this.mapWidth, this.mapHeight);
 		}
 
 		syncNpcSprite(this.npc, isoToWorld);
@@ -164,6 +160,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		const map = level.map;
 		this.map.length = 0;
 		this.map.push(...map);
+		this.mapWidth = level.mapWidth;
+		this.mapHeight = level.mapHeight;
 
 		if (levelId === DUNGEON_LEVEL.ONE) {
 			this.state = this.blueUnlocked ? 'level-one-blue-unlocked' : 'level-one-hunt-blue';
@@ -173,6 +171,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		if (!isInitialLoad) {
+			this.updateCameraBoundsForCurrentMap();
 			this.drawDungeon();
 			this.updateLevelMarker();
 			this.spawnActorsForLevel();
@@ -354,13 +353,13 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private ensureWalkable(tile: Vec2): Vec2 {
-		if (isWalkable(this.map, tile.x, tile.y, WORLD_WIDTH, WORLD_HEIGHT)) {
+		if (isWalkable(this.map, tile.x, tile.y, this.mapWidth, this.mapHeight)) {
 			return tile;
 		}
 
-		for (let y = 1; y < WORLD_HEIGHT - 1; y += 1) {
-			for (let x = 1; x < WORLD_WIDTH - 1; x += 1) {
-				if (isWalkable(this.map, x, y, WORLD_WIDTH, WORLD_HEIGHT)) {
+		for (let y = 1; y < this.mapHeight - 1; y += 1) {
+			for (let x = 1; x < this.mapWidth - 1; x += 1) {
+				if (isWalkable(this.map, x, y, this.mapWidth, this.mapHeight)) {
 					return { x, y };
 				}
 			}
@@ -486,12 +485,29 @@ export class IsometricDungeon extends Phaser.Scene {
 		return this.dungeonRenderer.isoToWorld(isoX, isoY, this.worldOffsetX, this.worldOffsetY);
 	}
 
+	private updateCameraBoundsForCurrentMap() {
+		if (this.mapWidth <= 0 || this.mapHeight <= 0) {
+			return;
+		}
+
+		const mapPixelWidth = (this.mapWidth + this.mapHeight) * (TILE_WIDTH / 2);
+		const mapPixelHeight = (this.mapWidth + this.mapHeight) * (TILE_HEIGHT / 2);
+
+		this.cameras.main.setBounds(
+			this.worldOffsetX - mapPixelWidth * 0.5 - TILE_WIDTH,
+			this.worldOffsetY - TILE_HEIGHT,
+			mapPixelWidth + TILE_WIDTH * 2,
+			mapPixelHeight + TILE_HEIGHT * 3
+		);
+	}
+
 	private handleResize(gameSize: Phaser.Structs.Size) {
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
 		const { width, height } = gameSize;
 		this.worldOffsetX = width * 0.5;
 		this.worldOffsetY = height * 0.18;
 		this.cameras.main.setSize(width, height);
+		this.updateCameraBoundsForCurrentMap();
 		this.drawDungeon();
 		this.updateLevelMarker();
 		syncPlayerSprite(this.player, isoToWorld);
