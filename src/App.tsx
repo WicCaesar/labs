@@ -99,6 +99,7 @@ export const App = () => {
 		canInteract: false,
 		state: 'level-one-hunt-blue' as 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete'
 	});
+	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
 	const {
 		dungeonQuiz,
 		dungeonQuizHeadingRef,
@@ -178,6 +179,7 @@ export const App = () => {
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setWorldFilterMode('none');
+			setDungeonInteractableNotice(null);
 			return;
 		}
 
@@ -191,9 +193,25 @@ export const App = () => {
 			setDungeonHud(hudState);
 		});
 
+		let clearNoticeTimer = 0;
+		const unsubscribeInteractable = EventBus.on('dungeon:interactable-activated', ({ message, durationMs }) => {
+			setDungeonInteractableNotice(message);
+			if (clearNoticeTimer > 0) {
+				window.clearTimeout(clearNoticeTimer);
+			}
+
+			clearNoticeTimer = window.setTimeout(() => {
+				setDungeonInteractableNotice(null);
+			}, durationMs);
+		});
+
 		return () => {
+			if (clearNoticeTimer > 0) {
+				window.clearTimeout(clearNoticeTimer);
+			}
 			unsubscribeWorld();
 			unsubscribeHud();
+			unsubscribeInteractable();
 		};
 	}, [isDungeonMode]);
 
@@ -319,6 +337,11 @@ export const App = () => {
 						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
 						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interaction available</span> : null}
 					</section>
+					{dungeonInteractableNotice ? (
+						<aside className="dungeon-interactable-toast" aria-live="assertive">
+							{dungeonInteractableNotice}
+						</aside>
+					) : null}
 
 					{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
 						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">

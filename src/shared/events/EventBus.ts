@@ -19,6 +19,13 @@ export type AppEventMap = {
 		totalQuestions: number;
 	};
 	'ui:dungeon-blue-quiz-cancelled': {};
+	'dungeon:interactable-activated': {
+		level: 1 | 2;
+		type: 'interactable';
+		position: { x: number; y: number };
+		message: string;
+		durationMs: number;
+	};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';
 	};

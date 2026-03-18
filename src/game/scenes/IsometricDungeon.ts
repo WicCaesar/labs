@@ -7,6 +7,7 @@ import {
 	createLevelConfig,
 	DUNGEON_LEVEL,
 	type DungeonHudState,
+	type DungeonInteractableMarker,
 	type DungeonLevelConfig,
 	type DungeonLevelId,
 	type DungeonState
@@ -32,6 +33,10 @@ export class IsometricDungeon extends Phaser.Scene {
 	private npc!: NpcState;
 
 	private exitMarker?: Phaser.GameObjects.Ellipse;
+
+	private markerVisuals: Phaser.GameObjects.Ellipse[] = [];
+
+	private readonly activatedInteractableKeys = new Set<string>();
 
 	private level2RespawnPoint: Vec2 = { x: 2, y: 2 };
 
@@ -201,6 +206,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		const npcSpawn = this.ensureWalkable(level.npcSpawn);
 		this.npc = spawnNpc(this, npcSpawn, isoToWorld);
 		this.npc.sprite.setVisible(!this.redUnlocked || this.currentLevel === DUNGEON_LEVEL.ONE);
+		this.renderInteractableMarkers();
 	}
 
 	private createInput() {
@@ -248,7 +254,10 @@ export class IsometricDungeon extends Phaser.Scene {
 			const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
 			if (nearNpc) {
 				this.startBlueUnlockQuiz();
+				return;
 			}
+
+			this.tryActivateNearbyInteractable();
 			return;
 		}
 
@@ -258,14 +267,23 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.transitionToSecondLevel();
 				return;
 			}
+
+			this.tryActivateNearbyInteractable();
+			return;
 		}
 
 		if (this.state === 'level-two-hunt-red' && !this.redUnlocked) {
 			const nearEnemy = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
 			if (nearEnemy) {
 				this.killEnemyUnlockRed();
+				return;
 			}
+
+			this.tryActivateNearbyInteractable();
+			return;
 		}
+
+		this.tryActivateNearbyInteractable();
 	}
 
 	private unlockBlueChannel() {
@@ -373,6 +391,88 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.updateLevelMarker();
 	}
 
+	private renderInteractableMarkers() {
+		this.markerVisuals.forEach((visual) => visual.destroy());
+		this.markerVisuals.length = 0;
+
+		const level = this.levels[this.currentLevel];
+		for (const marker of level.markers) {
+			if (marker.type !== 'interactable') {
+				continue;
+			}
+
+			const world = this.isoToWorld(marker.position.x + 0.5, marker.position.y + 0.5);
+			const isActive = this.activatedInteractableKeys.has(this.getMarkerKey(this.currentLevel, marker));
+			const visual = this.add.ellipse(
+				world.x,
+				world.y - TILE_HEIGHT * 0.1,
+				20,
+				12,
+				isActive ? 0x43a047 : 0x1f7fbf,
+				isActive ? 0.45 : 0.8
+			);
+			visual.setDepth(world.y + 7);
+			this.markerVisuals.push(visual);
+		}
+	}
+
+	private getNearestInteractable(): DungeonInteractableMarker | null {
+		const level = this.levels[this.currentLevel];
+		let nearest: DungeonInteractableMarker | null = null;
+		let nearestDistance = Number.POSITIVE_INFINITY;
+
+		for (const marker of level.markers) {
+			if (marker.type !== 'interactable') {
+				continue;
+			}
+
+			const markerCenter = {
+				x: marker.position.x + 0.5,
+				y: marker.position.y + 0.5
+			};
+			const distance = distanceBetween(this.player.gridPos, markerCenter);
+			if (distance < nearestDistance) {
+				nearest = marker;
+				nearestDistance = distance;
+			}
+		}
+
+		if (!nearest || nearestDistance > 1.1) {
+			return null;
+		}
+
+		return nearest;
+	}
+
+	private getMarkerKey(levelId: DungeonLevelId, marker: DungeonInteractableMarker): string {
+		return `${levelId}:${marker.type}:${marker.position.x}:${marker.position.y}`;
+	}
+
+	private tryActivateNearbyInteractable() {
+		const marker = this.getNearestInteractable();
+		if (!marker) {
+			return;
+		}
+
+		const markerKey = this.getMarkerKey(this.currentLevel, marker);
+		const alreadyActivated = this.activatedInteractableKeys.has(markerKey);
+		if (!alreadyActivated) {
+			this.activatedInteractableKeys.add(markerKey);
+			this.renderInteractableMarkers();
+			this.cameras.main.flash(140, 90, 190, 255);
+		}
+
+		EventBus.emit('dungeon:interactable-activated', {
+			level: this.currentLevel,
+			type: marker.type,
+			position: marker.position,
+			message: alreadyActivated
+				? `Interactable revisited at (${marker.position.x}, ${marker.position.y}).`
+				: `Interacted with marker at (${marker.position.x}, ${marker.position.y}).`,
+			durationMs: 2400
+		});
+	}
+
 	private updateLevelMarker() {
 		if (!this.exitMarker) {
 			return;
@@ -408,6 +508,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	private publishHudState() {
 		const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
 		const nearExit = this.isNearLevelExit();
+		const nearInteractable = this.getNearestInteractable() !== null;
 
 		if (this.state === 'level-one-hunt-blue') {
 			if (this.isBlueQuizActive) {
@@ -430,11 +531,13 @@ export class IsometricDungeon extends Phaser.Scene {
 					? 'Press E to descend now, or press E near the penguin to take the blue quiz first.'
 					: nearNpc
 						? 'Press E to start a 3-question quiz. You must score 3/3 to unlock blue.'
+						: nearInteractable
+							? 'Press E near the marker to inspect it.'
 						: this.lastBlueQuizCorrectAnswers > 0
 							? `Last quiz score: ${this.lastBlueQuizCorrectAnswers}/3. Talk to the penguin to retry.`
 							: 'Find the center hole to descend, or find the penguin and pass the quiz to unlock blue.',
 				objective: 'Optional: pass a 3-question quiz to unlock blue. Main path: descend to level 2.',
-				canInteract: nearNpc || nearExit
+				canInteract: nearNpc || nearExit || nearInteractable
 			});
 			return;
 		}
@@ -446,9 +549,11 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Blue restored. The descent hole is now active.',
 				hint: nearExit
 					? 'Press E to descend to the next level.'
+					: nearInteractable
+						? 'Press E near the marker to inspect it.'
 					: 'Find the dark hole near the center of the dungeon.',
 				objective: 'Descend to level 2.',
-				canInteract: nearExit
+				canInteract: nearExit || nearInteractable
 			});
 			return;
 		}
@@ -460,9 +565,11 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'The penguin is hostile now. Stay mobile.',
 				hint: nearNpc
 					? 'Press E near the enemy penguin to strike and finish it.'
+					: nearInteractable
+						? 'Press E near the marker to inspect it while avoiding the enemy.'
 					: 'Avoid contact. Close in only when you are ready to attack.',
 				objective: 'Defeat the enemy penguin to unlock red.',
-				canInteract: nearNpc
+				canInteract: nearNpc || nearInteractable
 			});
 			return;
 		}
@@ -471,9 +578,11 @@ export class IsometricDungeon extends Phaser.Scene {
 			level: 2,
 			state: 'complete',
 			status: 'Challenge complete: red channel unlocked.',
-			hint: 'All primary colors recovered. Explore freely.',
+			hint: nearInteractable
+				? 'All primary colors recovered. Press E near a marker to inspect it.'
+				: 'All primary colors recovered. Explore freely.',
 			objective: 'Completed.',
-			canInteract: false
+			canInteract: nearInteractable
 		});
 	}
 
@@ -510,6 +619,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.updateCameraBoundsForCurrentMap();
 		this.drawDungeon();
 		this.updateLevelMarker();
+		this.renderInteractableMarkers();
 		syncPlayerSprite(this.player, isoToWorld);
 		syncNpcSprite(this.npc, isoToWorld);
 	}

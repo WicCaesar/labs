@@ -40,6 +40,8 @@ export type DungeonLevelConfig = {
 	markers: DungeonMarker[];
 };
 
+export type DungeonInteractableMarker = Extract<DungeonMarker, { type: 'interactable' }>;
+
 function resolveNpcSpawn(
 	levelName: string,
 	friendlyNpcSpawns: Vec2[],

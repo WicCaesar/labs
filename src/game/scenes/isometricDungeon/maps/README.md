@@ -46,6 +46,7 @@ xxxxxxxx
 - Movement: all other symbols are walkable.
 - Spawn points and objects are extracted by the parser and consumed by level config.
 - The isometric renderer projects this grid to isometric view automatically.
+- Interactable marker (`i`): player can press `E` near the marker to trigger an in-game interaction event. The UI receives this via EventBus and shows a message toast.
 
 ## Common mistakes
 
