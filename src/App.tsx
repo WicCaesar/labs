@@ -92,12 +92,18 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked'>('none');
 	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2,
+		level: 1 as 1 | 2 | 3,
 		status: 'Dungeon is in grayscale. Find the wandering penguin.',
 		hint: 'Controls: WASD/Arrows + E to interact',
 		objective: 'Unlock blue.',
 		canInteract: false,
-		state: 'level-one-hunt-blue' as 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete'
+		state: 'level-one-hunt-blue' as
+			| 'level-one-hunt-blue'
+			| 'level-one-blue-unlocked'
+			| 'level-two-hunt-red'
+			| 'level-two-red-unlocked'
+			| 'level-three-hunt-yellow'
+			| 'complete'
 	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
 	const {
@@ -347,7 +353,9 @@ export const App = () => {
 						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
 							<section className="dungeon-quiz-panel" aria-live="polite">
 								<header className="dungeon-quiz-header">
-									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>{dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}</h2>
+									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
+										{dungeonQuiz.quizId === 'yellow' ? 'Final Yellow Quiz' : 'Blue Quiz'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
+									</h2>
 								</header>
 
 								<div className="dungeon-quiz-question">

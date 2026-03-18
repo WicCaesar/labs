@@ -61,11 +61,19 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private redUnlocked = false;
 
-	private isBlueQuizActive = false;
+	private yellowUnlocked = false;
+
+	private isDungeonQuizActive = false;
+
+	private activeDungeonQuizId: 'blue' | 'yellow' | null = null;
 
 	private lastBlueQuizCorrectAnswers = 0;
 
+	private lastYellowQuizCorrectAnswers = 0;
+
 	private readonly blueQuizQuestionCount = 3;
+
+	private readonly yellowQuizQuestionCount = 3;
 
 	private readonly unsubscribeHandlers: Array<() => void> = [];
 
@@ -102,11 +110,11 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.createInput();
 		this.createLevelMarker();
 		this.unsubscribeHandlers.push(
-			EventBus.on('ui:dungeon-blue-quiz-finished', ({ passed, correctAnswers }) => {
-				this.handleBlueQuizFinished(passed, correctAnswers);
+			EventBus.on('ui:dungeon-quiz-finished', ({ quizId, passed, correctAnswers }) => {
+				this.handleDungeonQuizFinished(quizId, passed, correctAnswers);
 			}),
-			EventBus.on('ui:dungeon-blue-quiz-cancelled', () => {
-				this.handleBlueQuizCancelled();
+			EventBus.on('ui:dungeon-quiz-cancelled', ({ quizId }) => {
+				this.handleDungeonQuizCancelled(quizId);
 			})
 		);
 		EventBus.emit('world:color-filter-state-changed', { mode: 'grayscale' });
@@ -130,7 +138,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	update(_: number, delta: number) {
-		if (this.isBlueQuizActive) {
+		if (this.isDungeonQuizActive) {
 			this.publishHudState();
 			return;
 		}
@@ -170,9 +178,11 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		if (levelId === DUNGEON_LEVEL.ONE) {
 			this.state = this.blueUnlocked ? 'level-one-blue-unlocked' : 'level-one-hunt-blue';
-		} else {
-			this.state = this.redUnlocked ? 'complete' : 'level-two-hunt-red';
+		} else if (levelId === DUNGEON_LEVEL.TWO) {
+			this.state = this.redUnlocked ? 'level-two-red-unlocked' : 'level-two-hunt-red';
 			this.level2RespawnPoint = { ...level.playerSpawn };
+		} else {
+			this.state = this.yellowUnlocked ? 'complete' : 'level-three-hunt-yellow';
 		}
 
 		if (!isInitialLoad) {
@@ -205,7 +215,8 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		const npcSpawn = this.ensureWalkable(level.npcSpawn);
 		this.npc = spawnNpc(this, npcSpawn, isoToWorld);
-		this.npc.sprite.setVisible(!this.redUnlocked || this.currentLevel === DUNGEON_LEVEL.ONE);
+		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
+		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
 		this.renderInteractableMarkers();
 	}
 
@@ -283,6 +294,28 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
+		if (this.state === 'level-two-red-unlocked') {
+			const canDescend = this.isNearLevelExit();
+			if (canDescend) {
+				this.transitionToThirdLevel();
+				return;
+			}
+
+			this.tryActivateNearbyInteractable();
+			return;
+		}
+
+		if (this.state === 'level-three-hunt-yellow') {
+			const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+			if (nearNpc) {
+				this.startYellowUnlockQuiz();
+				return;
+			}
+
+			this.tryActivateNearbyInteractable();
+			return;
+		}
+
 		this.tryActivateNearbyInteractable();
 	}
 
@@ -298,39 +331,78 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private startBlueUnlockQuiz() {
-		if (this.blueUnlocked || this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE) {
+		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE) {
 			return;
 		}
 
-		this.isBlueQuizActive = true;
+		this.isDungeonQuizActive = true;
+		this.activeDungeonQuizId = 'blue';
 		this.lastBlueQuizCorrectAnswers = 0;
-		EventBus.emit('dungeon:blue-quiz-requested', {
+		EventBus.emit('dungeon:quiz-requested', {
+			quizId: 'blue',
+			segment: 1,
 			questionCount: this.blueQuizQuestionCount
 		});
 	}
 
-	private handleBlueQuizFinished(passed: boolean, correctAnswers: number) {
-		if (!this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
+	private startYellowUnlockQuiz() {
+		if (this.yellowUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.THREE) {
 			return;
 		}
 
-		this.isBlueQuizActive = false;
-		this.lastBlueQuizCorrectAnswers = correctAnswers;
+		this.isDungeonQuizActive = true;
+		this.activeDungeonQuizId = 'yellow';
+		this.lastYellowQuizCorrectAnswers = 0;
+		EventBus.emit('dungeon:quiz-requested', {
+			quizId: 'yellow',
+			segment: 2,
+			questionCount: this.yellowQuizQuestionCount
+		});
+	}
 
+	private handleDungeonQuizFinished(quizId: 'blue' | 'yellow', passed: boolean, correctAnswers: number) {
+		if (!this.isDungeonQuizActive || this.activeDungeonQuizId !== quizId) {
+			return;
+		}
+
+		this.isDungeonQuizActive = false;
+		this.activeDungeonQuizId = null;
+
+		if (quizId === 'blue') {
+			if (this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
+				return;
+			}
+
+			this.lastBlueQuizCorrectAnswers = correctAnswers;
+			if (passed) {
+				this.unlockBlueChannel();
+				return;
+			}
+
+			this.cameras.main.shake(130, 0.006);
+			return;
+		}
+
+		if (this.currentLevel !== DUNGEON_LEVEL.THREE || this.yellowUnlocked) {
+			return;
+		}
+
+		this.lastYellowQuizCorrectAnswers = correctAnswers;
 		if (passed) {
-			this.unlockBlueChannel();
+			this.unlockYellowChannel();
 			return;
 		}
 
 		this.cameras.main.shake(130, 0.006);
 	}
 
-	private handleBlueQuizCancelled() {
-		if (!this.isBlueQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
+	private handleDungeonQuizCancelled(quizId: 'blue' | 'yellow') {
+		if (!this.isDungeonQuizActive || this.activeDungeonQuizId !== quizId) {
 			return;
 		}
 
-		this.isBlueQuizActive = false;
+		this.isDungeonQuizActive = false;
+		this.activeDungeonQuizId = null;
 	}
 
 	private transitionToSecondLevel() {
@@ -347,10 +419,33 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.redUnlocked = true;
-		this.state = 'complete';
+		this.state = 'level-two-red-unlocked';
 		this.npc.sprite.setVisible(false);
 		EventBus.emit('world:color-filter-state-changed', { mode: 'red-unlocked' });
 		this.cameras.main.flash(380, 255, 90, 90);
+		this.updateLevelMarker();
+	}
+
+	private unlockYellowChannel() {
+		if (this.yellowUnlocked) {
+			return;
+		}
+
+		this.yellowUnlocked = true;
+		this.state = 'complete';
+		const fullRgbRestored = this.blueUnlocked && this.redUnlocked;
+		EventBus.emit('world:color-filter-state-changed', {
+			mode: fullRgbRestored ? 'none' : this.redUnlocked ? 'red-unlocked' : this.blueUnlocked ? 'blue-unlocked' : 'grayscale'
+		});
+		this.cameras.main.flash(420, 120, 255, 120);
+	}
+
+	private transitionToThirdLevel() {
+		this.cameras.main.fadeOut(260, 20, 20, 30);
+		this.time.delayedCall(280, () => {
+			this.loadLevel(DUNGEON_LEVEL.THREE);
+			this.cameras.main.fadeIn(260, 20, 20, 30);
+		});
 	}
 
 	private handleEnemyTouchDamage() {
@@ -485,9 +580,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		const world = this.isoToWorld(level.exitTile.x + 0.5, level.exitTile.y + 0.5);
+		const exitAvailable = this.currentLevel !== DUNGEON_LEVEL.TWO || this.redUnlocked;
 		this.exitMarker.setVisible(true);
 		this.exitMarker.setPosition(world.x, world.y - TILE_HEIGHT * 0.16);
-		this.exitMarker.setFillStyle(this.blueUnlocked ? 0x111111 : 0x2c2c2c, this.blueUnlocked ? 0.88 : 0.58);
+		this.exitMarker.setFillStyle(exitAvailable ? 0x111111 : 0x2c2c2c, exitAvailable ? 0.88 : 0.58);
 		this.exitMarker.setDepth(world.y + 8);
 	}
 
@@ -511,7 +607,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		const nearInteractable = this.getNearestInteractable() !== null;
 
 		if (this.state === 'level-one-hunt-blue') {
-			if (this.isBlueQuizActive) {
+			if (this.isDungeonQuizActive && this.activeDungeonQuizId === 'blue') {
 				this.emitHudState({
 					level: 1,
 					state: this.state,
@@ -574,13 +670,65 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
+		if (this.state === 'level-two-red-unlocked') {
+			this.emitHudState({
+				level: 2,
+				state: this.state,
+				status: 'Red restored. The next stairs are now active.',
+				hint: nearExit
+					? 'Press E to descend to level 3 and face the final quiz.'
+					: nearInteractable
+						? 'Press E near the marker to inspect it.'
+						: 'Find the marked stairs to proceed to level 3.',
+				objective: 'Reach level 3 and unlock yellow (green channel).',
+				canInteract: nearExit || nearInteractable
+			});
+			return;
+		}
+
+		if (this.state === 'level-three-hunt-yellow') {
+			if (this.isDungeonQuizActive && this.activeDungeonQuizId === 'yellow') {
+				this.emitHudState({
+					level: 3,
+					state: this.state,
+					status: 'Final quiz in progress: answer 3 segment-2 questions to unlock yellow.',
+					hint: 'Complete the quiz overlay with keyboard or pointer. ESC closes the quiz.',
+					objective: 'Pass the final segment-2 quiz.',
+					canInteract: false
+				});
+				return;
+			}
+
+			this.emitHudState({
+				level: 3,
+				state: this.state,
+				status: 'Final challenge: talk to the penguin to unlock yellow.',
+				hint: nearNpc
+					? 'Press E to start a 3-question quiz from segment 2. You must score 3/3.'
+					: nearInteractable
+						? 'Press E near the marker to inspect it.'
+						: this.lastYellowQuizCorrectAnswers > 0
+							? `Last final quiz score: ${this.lastYellowQuizCorrectAnswers}/3. Talk to the penguin to retry.`
+							: 'Find the penguin and pass the final quiz.',
+				objective: 'Unlock yellow (green channel) to restore full RGB.',
+				canInteract: nearNpc || nearInteractable
+			});
+			return;
+		}
+
 		this.emitHudState({
-			level: 2,
+			level: 3,
 			state: 'complete',
-			status: 'Challenge complete: red channel unlocked.',
-			hint: nearInteractable
-				? 'All primary colors recovered. Press E near a marker to inspect it.'
-				: 'All primary colors recovered. Explore freely.',
+			status: this.blueUnlocked && this.redUnlocked
+				? 'Final challenge complete: full RGB restored.'
+				: 'Final challenge complete: green unlocked. Recover blue + red for full RGB.',
+			hint: this.blueUnlocked && this.redUnlocked
+				? (nearInteractable
+					? 'All color channels recovered. Press E near a marker to inspect it.'
+					: 'All color channels recovered. Explore freely.')
+				: (nearInteractable
+					? 'Green restored. Press E near a marker to inspect it while you hunt missing channels.'
+					: 'Green restored. Return to unlock remaining channels if needed.'),
 			objective: 'Completed.',
 			canInteract: nearInteractable
 		});

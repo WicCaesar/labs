@@ -47,6 +47,7 @@ xxxxxxxx
 - Spawn points and objects are extracted by the parser and consumed by level config.
 - The isometric renderer projects this grid to isometric view automatically.
 - Interactable marker (`i`): player can press `E` near the marker to trigger an in-game interaction event. The UI receives this via EventBus and shows a message toast.
+- In level 3, a friendly NPC (`N`) is used for the final segment-2 quiz that unlocks yellow (implemented as green channel restoration), returning the game to full RGB when blue + red are already unlocked.
 
 ## Common mistakes
 

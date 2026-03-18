@@ -16,6 +16,8 @@ type DungeonQuizQuestion = {
 
 type DungeonQuizState = {
 	isOpen: boolean;
+	quizId: 'blue' | 'yellow';
+	segment: Segment;
 	questionCount: number;
 	questions: DungeonQuizQuestion[];
 	currentQuestionIndex: number;
@@ -65,6 +67,8 @@ const createDungeonQuizRoundState = (feedback = DUNGEON_QUIZ_DEFAULT_FEEDBACK): 
 
 const createInitialDungeonQuizState = (): DungeonQuizState => ({
 	isOpen: false,
+	quizId: 'blue',
+	segment: 1,
 	questionCount: 3,
 	questions: [],
 	currentQuestionIndex: 0,
@@ -74,9 +78,11 @@ const createInitialDungeonQuizState = (): DungeonQuizState => ({
 	feedback: DUNGEON_QUIZ_DEFAULT_FEEDBACK
 });
 
-const buildDungeonQuizQuestions = (questionCount: number): DungeonQuizQuestion[] => {
-	const safeCount = Math.max(1, Math.min(questionCount, questionBank.length));
-	return shuffled(questionBank)
+const buildDungeonQuizQuestions = (questionCount: number, segment: Segment): DungeonQuizQuestion[] => {
+	const segmentQuestions = questionBank.filter((entry) => entry.segment === segment);
+	const source = segmentQuestions.length > 0 ? segmentQuestions : questionBank;
+	const safeCount = Math.max(1, Math.min(questionCount, source.length));
+	return shuffled(source)
 		.slice(0, safeCount)
 		.map((entry) => ({
 			id: entry.id,
@@ -94,8 +100,11 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 	const dungeonQuizHeadingRef = useRef<HTMLHeadingElement | null>(null);
 	const dungeonHelp2ResolveTimeoutRef = useRef<number | null>(null);
 	const dungeonAutoAdvanceTimeoutRef = useRef<number | null>(null);
+	const activeDungeonQuizIdRef = useRef<'blue' | 'yellow'>('blue');
 
 	const closeDungeonQuiz = useCallback(() => {
+		const cancelledQuizId = activeDungeonQuizIdRef.current;
+
 		setDungeonQuiz((prev) => {
 			if (!prev.isOpen) {
 				return prev;
@@ -114,7 +123,9 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 			return createInitialDungeonQuizState();
 		});
 
-		EventBus.emit('ui:dungeon-blue-quiz-cancelled', {});
+		EventBus.emit('ui:dungeon-quiz-cancelled', {
+			quizId: cancelledQuizId
+		});
 	}, []);
 
 	const nextDungeonQuizQuestion = useCallback(() => {
@@ -133,7 +144,8 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 			}
 
 			const passed = prev.correctAnswers >= prev.questionCount;
-			EventBus.emit('ui:dungeon-blue-quiz-finished', {
+			EventBus.emit('ui:dungeon-quiz-finished', {
+				quizId: prev.quizId,
 				passed,
 				correctAnswers: prev.correctAnswers,
 				totalQuestions: prev.questionCount
@@ -196,7 +208,8 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 				};
 			}
 
-			EventBus.emit('ui:dungeon-blue-quiz-finished', {
+			EventBus.emit('ui:dungeon-quiz-finished', {
+				quizId: prev.quizId,
 				passed: false,
 				correctAnswers: prev.correctAnswers,
 				totalQuestions: prev.questionCount
@@ -262,11 +275,14 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		}
 
 		// EventBus contract: Phaser requests quiz start; React owns quiz UI and returns results.
-		const unsubscribeQuizRequested = EventBus.on('dungeon:blue-quiz-requested', ({ questionCount }) => {
-			const questions = buildDungeonQuizQuestions(questionCount);
+		const unsubscribeQuizRequested = EventBus.on('dungeon:quiz-requested', ({ quizId, questionCount, segment }) => {
+			activeDungeonQuizIdRef.current = quizId;
+			const questions = buildDungeonQuizQuestions(questionCount, segment);
 			setDungeonQuiz({
 				...createInitialDungeonQuizState(),
 				isOpen: true,
+				quizId,
+				segment,
 				questionCount: questions.length,
 				questions
 			});

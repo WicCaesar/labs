@@ -2,10 +2,12 @@ import type { Vec2 } from './types';
 import { parseDungeonMap, type DungeonMarker } from './dungeonMapParser';
 import defaultLevelMapRaw from './maps/default.level.map.txt?raw';
 import secondLevelMapRaw from './maps/second.level.map.txt?raw';
+import thirdLevelMapRaw from './maps/third.level.map.txt?raw';
 
 export const DUNGEON_LEVEL = {
 	ONE: 1,
-	TWO: 2
+	TWO: 2,
+	THREE: 3
 } as const;
 
 export type DungeonLevelId = typeof DUNGEON_LEVEL[keyof typeof DUNGEON_LEVEL];
@@ -14,6 +16,8 @@ export type DungeonState =
 	| 'level-one-hunt-blue'
 	| 'level-one-blue-unlocked'
 	| 'level-two-hunt-red'
+	| 'level-two-red-unlocked'
+	| 'level-three-hunt-yellow'
 	| 'complete';
 
 export type DungeonHudState = {
@@ -67,9 +71,11 @@ function resolveNpcSpawn(
 export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> {
 	const levelOneMap = parseDungeonMap(defaultLevelMapRaw, 'level-one');
 	const levelTwoMap = parseDungeonMap(secondLevelMapRaw, 'level-two');
+	const levelThreeMap = parseDungeonMap(thirdLevelMapRaw, 'level-three');
 
 	const levelOneNpc = resolveNpcSpawn('level-one', levelOneMap.friendlyNpcSpawns, levelOneMap.enemyNpcSpawns);
 	const levelTwoNpc = resolveNpcSpawn('level-two', levelTwoMap.friendlyNpcSpawns, levelTwoMap.enemyNpcSpawns);
+	const levelThreeNpc = resolveNpcSpawn('level-three', levelThreeMap.friendlyNpcSpawns, levelThreeMap.enemyNpcSpawns);
 
 	return {
 		[DUNGEON_LEVEL.ONE]: {
@@ -92,9 +98,21 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			playerSpawn: levelTwoMap.playerSpawn,
 			npcSpawn: levelTwoNpc.npcSpawn,
 			npcRole: levelTwoNpc.npcRole,
+			exitTile: levelTwoMap.exitTile,
+			exitLabel: levelTwoMap.exitTile ? 'Ascend' : null,
+			markers: levelTwoMap.markers
+		},
+		[DUNGEON_LEVEL.THREE]: {
+			id: DUNGEON_LEVEL.THREE,
+			map: levelThreeMap.map,
+			mapWidth: levelThreeMap.width,
+			mapHeight: levelThreeMap.height,
+			playerSpawn: levelThreeMap.playerSpawn,
+			npcSpawn: levelThreeNpc.npcSpawn,
+			npcRole: levelThreeNpc.npcRole,
 			exitTile: null,
 			exitLabel: null,
-			markers: levelTwoMap.markers
+			markers: levelThreeMap.markers
 		}
 	};
 }
