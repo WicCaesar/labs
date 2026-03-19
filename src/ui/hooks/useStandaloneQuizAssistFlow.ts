@@ -56,6 +56,7 @@ export const useStandaloneQuizAssistFlow = ({
 		setIsResolvingHelp2(true);
 		setHelp2Used(true);
 
+		// Mirror dungeon mode timing so helper UX feels consistent across both flows.
 		help2ResolveTimeoutRef.current = window.setTimeout(() => {
 			const wrongVisibleOptions = visibleOptions.filter((option) => option.id !== correctOptionId);
 			const removableCount = Math.min(card.value, wrongVisibleOptions.length);
@@ -71,6 +72,7 @@ export const useStandaloneQuizAssistFlow = ({
 	};
 
 	useEffect(() => {
+		// Question changes reset all per-question helper state.
 		setRemovedOptionIds([]);
 		setHelp2Deck([]);
 		setIsHelp2PanelOpen(false);

@@ -1,3 +1,4 @@
+// Legacy procedural helper kept for quick experiments; gameplay currently uses text maps.
 export function buildSecondDungeonMap(worldWidth: number, worldHeight: number): number[][] {
 	const map: number[][] = [];
 

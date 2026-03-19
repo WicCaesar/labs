@@ -1,6 +1,18 @@
+// Public filter contract between Phaser scene state and React UI rendering.
+// Combination modes represent which RGB channels are currently unlocked.
+export type WorldColorFilterMode =
+	| 'none'
+	| 'grayscale'
+	| 'blue-unlocked'
+	| 'red-unlocked'
+	| 'green-unlocked'
+	| 'red-green-unlocked'
+	| 'red-blue-unlocked'
+	| 'green-blue-unlocked';
+
 export type AppEventMap = {
 	'world:color-filter-state-changed': {
-		mode: 'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked';
+		mode: WorldColorFilterMode;
 	};
 	'dungeon:hud-state-changed': {
 		level: 1 | 2 | 3;

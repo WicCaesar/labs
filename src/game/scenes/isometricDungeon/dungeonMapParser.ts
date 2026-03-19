@@ -29,6 +29,7 @@ export type ParsedDungeonMap = {
 const WALKABLE = 0;
 const BLOCKED = 1;
 
+// Map files can include spaces/tabs for readability; parser ignores them.
 const normalizeRow = (row: string): string => row.replace(/[\t ]+/g, '');
 
 export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonMap {
@@ -68,6 +69,7 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 		const row: number[] = [];
 		for (let x = 0; x < width; x += 1) {
 			const symbol = sourceRows[y][x];
+			// Symbols define both collision and spawn metadata in one pass.
 			switch (symbol) {
 				case '0':
 				case '.':

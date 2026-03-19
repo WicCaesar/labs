@@ -2,15 +2,44 @@ import Phaser from 'phaser';
 import { RANDOM_DIRECTION_CHOICES } from './constants';
 import type { DirectionKey, Vec2 } from './types';
 
-export function isWalkable(map: number[][], x: number, y: number, worldWidth: number, worldHeight: number): boolean {
-	const tileX = Math.floor(x);
-	const tileY = Math.floor(y);
+// Radius in tile-space used to keep sprites from visually clipping into blocked cells.
+const ENTITY_COLLISION_RADIUS = 0.31;
 
+function isBlockedTile(map: number[][], tileX: number, tileY: number, worldWidth: number, worldHeight: number): boolean {
 	if (tileX < 0 || tileY < 0 || tileX >= worldWidth || tileY >= worldHeight) {
+		return true;
+	}
+
+	return map[tileY][tileX] !== 0;
+}
+
+export function isWalkable(map: number[][], x: number, y: number, worldWidth: number, worldHeight: number): boolean {
+	// Entity positions are tracked around tile centers (integer coordinates),
+	// so we use round-based lookup to keep collision symmetrical around walls.
+	const tileX = Math.round(x);
+	const tileY = Math.round(y);
+
+	if (isBlockedTile(map, tileX, tileY, worldWidth, worldHeight)) {
 		return false;
 	}
 
-	return map[tileY][tileX] === 0;
+	if (isBlockedTile(map, tileX - 1, tileY, worldWidth, worldHeight) && x < tileX - 0.5 + ENTITY_COLLISION_RADIUS) {
+		return false;
+	}
+
+	if (isBlockedTile(map, tileX + 1, tileY, worldWidth, worldHeight) && x > tileX + 0.5 - ENTITY_COLLISION_RADIUS) {
+		return false;
+	}
+
+	if (isBlockedTile(map, tileX, tileY - 1, worldWidth, worldHeight) && y < tileY - 0.5 + ENTITY_COLLISION_RADIUS) {
+		return false;
+	}
+
+	if (isBlockedTile(map, tileX, tileY + 1, worldWidth, worldHeight) && y > tileY + 0.5 - ENTITY_COLLISION_RADIUS) {
+		return false;
+	}
+
+	return true;
 }
 
 export function tryMoveEntity(
@@ -32,6 +61,8 @@ export function tryMoveEntity(
 		return true;
 	}
 
+	// If diagonal movement is blocked, try each axis independently to allow
+	// smooth sliding along walls instead of fully stopping.
 	const xOnly = startX + direction.x * distance;
 	if (isWalkable(map, xOnly, startY, worldWidth, worldHeight)) {
 		position.x = xOnly;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { EventBus } from './shared/events/EventBus';
+import type { WorldColorFilterMode } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
@@ -90,7 +91,7 @@ const OptionContent = ({
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
-	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked'>('none');
+	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonHud, setDungeonHud] = useState({
 		level: 1 as 1 | 2 | 3,
 		status: 'Dungeon is in grayscale. Find the wandering penguin.',
@@ -287,6 +288,8 @@ export const App = () => {
 	const skipDisabled = progress.skipsRemaining <= 0;
 	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
 
+	// Filter IDs here must stay in sync with CSS classes in public/style.css
+	// and WorldColorFilterMode values from the typed EventBus contract.
 	const worldFilterDefs = (
 		<svg className="color-filter-defs" aria-hidden="true" focusable="false">
 			<defs>
@@ -306,9 +309,9 @@ export const App = () => {
 					<feColorMatrix
 						type="matrix"
 						values="
-							0.299 0.587 0.114 0 0
-							0.299 0.587 0.114 0 0
-							0     0     1     0 0
+							0.030 0.050 0.010 0 0.020
+							0.030 0.050 0.010 0 0.020
+							0.160 0.280 0.880 0 0.040
 							0     0     0     1 0
 						"
 					/>
@@ -318,9 +321,57 @@ export const App = () => {
 					<feColorMatrix
 						type="matrix"
 						values="
-							1     0     0     0 0
-							0.299 0.587 0.114 0 0
-							0.299 0.587 0.114 0 0
+							0.755 0.205 0.040 0 0
+							0.021 0.041 0.008 0 0
+							0.021 0.041 0.008 0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-green-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0.021 0.041 0.008 0 0
+							0.105 0.855 0.040 0 0
+							0.021 0.041 0.008 0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-red-green-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0.625 0.147 0.029 0 0
+							0.075 0.697 0.029 0 0
+							0     0     0     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-red-blue-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0.625 0.147 0.029 0 0
+							0     0     0     0 0
+							0.075 0.147 0.579 0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-green-blue-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0     0     0     0 0
+							0.075 0.697 0.029 0 0
+							0.075 0.147 0.579 0 0
 							0     0     0     1 0
 						"
 					/>

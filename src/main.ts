@@ -9,5 +9,6 @@ if (!root) {
 }
 
 createRoot(root).render(
+    // Keep React mounting explicit (without JSX transform) to match current setup.
     createElement(StrictMode, null, createElement(App))
 );

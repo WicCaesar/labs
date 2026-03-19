@@ -52,6 +52,7 @@ function resolveNpcSpawn(
 	friendlyNpcSpawns: Vec2[],
 	enemyNpcSpawns: Vec2[]
 ): { npcSpawn: Vec2; npcRole: DungeonNpcRole } {
+	// Enemy spawn has priority when both are present so level behavior remains explicit.
 	if (enemyNpcSpawns.length > 0) {
 		return {
 			npcSpawn: enemyNpcSpawns[0],
@@ -69,10 +70,24 @@ function resolveNpcSpawn(
 	throw new Error(`[${levelName}] missing NPC spawn. Add 'N' or 'E' to the map.`);
 }
 
+function requirePlayerSpawn(levelName: string, spawn: Vec2 | null): Vec2 {
+	// Parser already validates this, but we keep a local guard for type narrowing
+	// and to make the configuration invariant explicit.
+	if (!spawn) {
+		throw new Error(`[${levelName}] missing required player spawn 'P'.`);
+	}
+
+	return spawn;
+}
+
 export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> {
+	// Parse raw text maps once and expose normalized runtime config for scenes.
 	const levelOneMap = parseDungeonMap(defaultLevelMapRaw, 'level-one');
 	const levelTwoMap = parseDungeonMap(secondLevelMapRaw, 'level-two');
 	const levelThreeMap = parseDungeonMap(thirdLevelMapRaw, 'level-three');
+	const levelOnePlayerSpawn = requirePlayerSpawn('level-one', levelOneMap.playerSpawn);
+	const levelTwoPlayerSpawn = requirePlayerSpawn('level-two', levelTwoMap.playerSpawn);
+	const levelThreePlayerSpawn = requirePlayerSpawn('level-three', levelThreeMap.playerSpawn);
 
 	const levelOneNpc = resolveNpcSpawn('level-one', levelOneMap.friendlyNpcSpawns, levelOneMap.enemyNpcSpawns);
 	const levelTwoNpc = resolveNpcSpawn('level-two', levelTwoMap.friendlyNpcSpawns, levelTwoMap.enemyNpcSpawns);
@@ -84,7 +99,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			map: levelOneMap.map,
 			mapWidth: levelOneMap.width,
 			mapHeight: levelOneMap.height,
-			playerSpawn: levelOneMap.playerSpawn,
+			playerSpawn: levelOnePlayerSpawn,
 			npcSpawn: levelOneNpc.npcSpawn,
 			npcRole: levelOneNpc.npcRole,
 			exitTile: levelOneMap.exitTile,
@@ -97,7 +112,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			map: levelTwoMap.map,
 			mapWidth: levelTwoMap.width,
 			mapHeight: levelTwoMap.height,
-			playerSpawn: levelTwoMap.playerSpawn,
+			playerSpawn: levelTwoPlayerSpawn,
 			npcSpawn: levelTwoNpc.npcSpawn,
 			npcRole: levelTwoNpc.npcRole,
 			exitTile: levelTwoMap.exitTile,
@@ -110,7 +125,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			map: levelThreeMap.map,
 			mapWidth: levelThreeMap.width,
 			mapHeight: levelThreeMap.height,
-			playerSpawn: levelThreeMap.playerSpawn,
+			playerSpawn: levelThreePlayerSpawn,
 			npcSpawn: levelThreeNpc.npcSpawn,
 			npcRole: levelThreeNpc.npcRole,
 			exitTile: null,

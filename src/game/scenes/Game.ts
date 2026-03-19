@@ -41,6 +41,7 @@ export class Game extends Scene {
             this.indicesBySegment[question.segment].push(index);
         });
 
+        // Pre-fill all segment bags so the first draw in each segment is randomized.
         this.refillSegmentBag(1);
         this.refillSegmentBag(2);
         this.refillSegmentBag(3);
@@ -177,6 +178,7 @@ export class Game extends Scene {
         const bag = this.questionBagBySegment[this.activeSegment];
 
         if (bag.length === 0) {
+            // Avoid immediate repeat when we re-shuffle a segment bag.
             this.refillSegmentBag(this.activeSegment, this.questionIndex);
         }
 
@@ -186,6 +188,7 @@ export class Game extends Scene {
     private refillSegmentBag(segment: Segment, avoidFirstIndex?: number) {
         const base = [...this.indicesBySegment[segment]];
 
+        // Fisher-Yates shuffle.
         for (let i = base.length - 1; i > 0; i -= 1) {
             const j = Math.floor(Math.random() * (i + 1));
             [base[i], base[j]] = [base[j], base[i]];
