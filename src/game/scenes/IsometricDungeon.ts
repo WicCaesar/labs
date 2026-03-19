@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS } from '../../shared/constants/sceneKeys';
 import { EventBus } from '../../shared/events/EventBus';
+import type { WorldColorFilterMode } from '../../shared/events/EventBus';
 import { DungeonRenderer } from './isometricDungeon/DungeonRenderer';
 import { INTERACTION_DISTANCE, TILE_HEIGHT, TILE_WIDTH } from './isometricDungeon/constants';
 import {
@@ -128,7 +129,7 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.handleDungeonQuizCancelled(quizId);
 			})
 		);
-		EventBus.emit('world:color-filter-state-changed', { mode: 'grayscale' });
+		this.emitWorldColorFilterState();
 		this.publishHudState();
 
 		this.scale.on('resize', this.handleResize, this);
@@ -350,7 +351,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.blueUnlocked = true;
 		this.state = 'level-one-blue-unlocked';
-		EventBus.emit('world:color-filter-state-changed', { mode: 'blue-unlocked' });
+		this.emitWorldColorFilterState();
 		this.cameras.main.flash(300, 90, 130, 255);
 	}
 
@@ -445,7 +446,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.redUnlocked = true;
 		this.state = 'level-two-red-unlocked';
 		this.npc.sprite.setVisible(false);
-		EventBus.emit('world:color-filter-state-changed', { mode: 'red-unlocked' });
+		this.emitWorldColorFilterState();
 		this.cameras.main.flash(380, 255, 90, 90);
 		this.updateLevelMarker();
 	}
@@ -457,11 +458,50 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.yellowUnlocked = true;
 		this.state = 'complete';
-		const fullRgbRestored = this.blueUnlocked && this.redUnlocked;
-		EventBus.emit('world:color-filter-state-changed', {
-			mode: fullRgbRestored ? 'none' : this.redUnlocked ? 'red-unlocked' : this.blueUnlocked ? 'blue-unlocked' : 'grayscale'
-		});
+		this.emitWorldColorFilterState();
 		this.cameras.main.flash(420, 120, 255, 120);
+	}
+
+	private emitWorldColorFilterState() {
+		EventBus.emit('world:color-filter-state-changed', {
+			mode: this.getWorldColorFilterMode()
+		});
+	}
+
+	private getWorldColorFilterMode(): WorldColorFilterMode {
+		const red = this.redUnlocked;
+		const green = this.yellowUnlocked;
+		const blue = this.blueUnlocked;
+
+		if (red && green && blue) {
+			return 'none';
+		}
+
+		if (red && green) {
+			return 'red-green-unlocked';
+		}
+
+		if (red && blue) {
+			return 'red-blue-unlocked';
+		}
+
+		if (green && blue) {
+			return 'green-blue-unlocked';
+		}
+
+		if (red) {
+			return 'red-unlocked';
+		}
+
+		if (green) {
+			return 'green-unlocked';
+		}
+
+		if (blue) {
+			return 'blue-unlocked';
+		}
+
+		return 'grayscale';
 	}
 
 	private transitionToThirdLevel() {

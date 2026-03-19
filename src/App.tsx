@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { EventBus } from './shared/events/EventBus';
+import type { WorldColorFilterMode } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
@@ -90,7 +91,7 @@ const OptionContent = ({
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
-	const [worldFilterMode, setWorldFilterMode] = useState<'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked'>('none');
+	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonHud, setDungeonHud] = useState({
 		level: 1 as 1 | 2 | 3,
 		status: 'Dungeon is in grayscale. Find the wandering penguin.',
@@ -306,9 +307,9 @@ export const App = () => {
 					<feColorMatrix
 						type="matrix"
 						values="
+							0     0     0     0 0
+							0     0     0     0 0
 							0.299 0.587 0.114 0 0
-							0.299 0.587 0.114 0 0
-							0     0     1     0 0
 							0     0     0     1 0
 						"
 					/>
@@ -318,9 +319,57 @@ export const App = () => {
 					<feColorMatrix
 						type="matrix"
 						values="
+							0.299 0.587 0.114 0 0
+							0     0     0     0 0
+							0     0     0     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-green-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0     0     0     0 0
+							0.299 0.587 0.114 0 0
+							0     0     0     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-red-green-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
 							1     0     0     0 0
-							0.299 0.587 0.114 0 0
-							0.299 0.587 0.114 0 0
+							0     1     0     0 0
+							0     0     0     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-red-blue-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							1     0     0     0 0
+							0     0     0     0 0
+							0     0     1     0 0
+							0     0     0     1 0
+						"
+					/>
+				</filter>
+
+				<filter id="world-filter-green-blue-unlocked" colorInterpolationFilters="sRGB">
+					<feColorMatrix
+						type="matrix"
+						values="
+							0     0     0     0 0
+							0     1     0     0 0
+							0     0     1     0 0
 							0     0     0     1 0
 						"
 					/>

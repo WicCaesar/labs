@@ -1,6 +1,16 @@
+export type WorldColorFilterMode =
+	| 'none'
+	| 'grayscale'
+	| 'blue-unlocked'
+	| 'red-unlocked'
+	| 'green-unlocked'
+	| 'red-green-unlocked'
+	| 'red-blue-unlocked'
+	| 'green-blue-unlocked';
+
 export type AppEventMap = {
 	'world:color-filter-state-changed': {
-		mode: 'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked';
+		mode: WorldColorFilterMode;
 	};
 	'dungeon:hud-state-changed': {
 		level: 1 | 2 | 3;

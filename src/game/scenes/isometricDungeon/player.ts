@@ -5,6 +5,8 @@ import type { DirectionKey, Vec2 } from './types';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 
+const PLAYER_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
+
 export type PlayerState = {
 	gridPos: Vec2;
 	facing: DirectionKey;
@@ -15,7 +17,7 @@ export function spawnPlayer(scene: Phaser.Scene, spawnPosition: Vec2, isoToWorld
 	const facing: DirectionKey = 'south';
 	const world = isoToWorld(spawnPosition.x, spawnPosition.y);
 
-	const sprite = scene.add.image(world.x, world.y - TILE_HEIGHT * 0.65, DIRECTION_TO_FRAME[facing]);
+	const sprite = scene.add.image(world.x, world.y + PLAYER_FEET_OFFSET_Y, DIRECTION_TO_FRAME[facing]);
 	sprite.setOrigin(0.5, 1);
 	sprite.setScale(PLAYER_SCALE);
 	sprite.setDepth(world.y + 10);
@@ -56,6 +58,6 @@ export function updatePlayerMovement(
 
 export function syncPlayerSprite(player: PlayerState, isoToWorld: IsoToWorld) {
 	const world = isoToWorld(player.gridPos.x, player.gridPos.y);
-	player.sprite.setPosition(world.x, world.y - TILE_HEIGHT * 0.65);
+	player.sprite.setPosition(world.x, world.y + PLAYER_FEET_OFFSET_Y);
 	player.sprite.setDepth(world.y + 10);
 }

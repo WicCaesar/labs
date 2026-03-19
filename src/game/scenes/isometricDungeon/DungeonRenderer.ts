@@ -11,11 +11,7 @@ import type { Vec2 } from './types';
 export class DungeonRenderer {
 	private floorGraphics?: Phaser.GameObjects.Graphics;
 
-	private wallTopGraphics?: Phaser.GameObjects.Graphics;
-
-	private wallLeftGraphics?: Phaser.GameObjects.Graphics;
-
-	private wallRightGraphics?: Phaser.GameObjects.Graphics;
+	private wallBlocks: Phaser.GameObjects.Graphics[] = [];
 
 	constructor(private readonly scene: Phaser.Scene) {}
 
@@ -27,17 +23,15 @@ export class DungeonRenderer {
 	}
 
 	draw(map: number[][], worldOffsetX: number, worldOffsetY: number) {
-		if (!this.floorGraphics || !this.wallTopGraphics || !this.wallLeftGraphics || !this.wallRightGraphics) {
+		if (!this.floorGraphics) {
 			this.floorGraphics = this.scene.add.graphics();
-			this.wallTopGraphics = this.scene.add.graphics();
-			this.wallLeftGraphics = this.scene.add.graphics();
-			this.wallRightGraphics = this.scene.add.graphics();
 		}
 
 		this.floorGraphics.clear();
-		this.wallTopGraphics.clear();
-		this.wallLeftGraphics.clear();
-		this.wallRightGraphics.clear();
+		for (const wallBlock of this.wallBlocks) {
+			wallBlock.destroy();
+		}
+		this.wallBlocks.length = 0;
 
 		const height = map.length;
 		const width = map[0]?.length ?? 0;
@@ -53,15 +47,15 @@ export class DungeonRenderer {
 				this.drawDiamond(this.floorGraphics, world.x, world.y, floorFill, floorStroke);
 
 				if (isWall) {
-					this.drawWall(world.x, world.y);
+					const wallBlock = this.scene.add.graphics();
+					this.drawWallBlock(wallBlock, world.x, world.y);
+					wallBlock.setDepth(world.y + HALF_TILE_HEIGHT);
+					this.wallBlocks.push(wallBlock);
 				}
 			}
 		}
 
 		this.floorGraphics.setDepth(1);
-		this.wallLeftGraphics.setDepth(3);
-		this.wallRightGraphics.setDepth(3);
-		this.wallTopGraphics.setDepth(4);
 		this.scene.cameras.main.setBackgroundColor('#1b1430');
 	}
 
@@ -84,36 +78,32 @@ export class DungeonRenderer {
 		graphics.strokePath();
 	}
 
-	private drawWall(worldX: number, worldY: number) {
-		if (!this.wallTopGraphics || !this.wallLeftGraphics || !this.wallRightGraphics) {
-			return;
-		}
-
+	private drawWallBlock(graphics: Phaser.GameObjects.Graphics, worldX: number, worldY: number) {
 		const wallHeight = TILE_HEIGHT;
 		const topY = worldY - wallHeight;
 
-		this.drawDiamond(this.wallTopGraphics, worldX, topY, 0xc7885a, 0x925d36);
+		this.drawDiamond(graphics, worldX, topY, 0xc7885a, 0x925d36);
 
-		this.wallLeftGraphics.fillStyle(0x8f5a7a, 1);
-		this.wallLeftGraphics.lineStyle(1, 0x6a3f59, 0.9);
-		this.wallLeftGraphics.beginPath();
-		this.wallLeftGraphics.moveTo(worldX - HALF_TILE_WIDTH, worldY);
-		this.wallLeftGraphics.lineTo(worldX, worldY + HALF_TILE_HEIGHT);
-		this.wallLeftGraphics.lineTo(worldX, topY + HALF_TILE_HEIGHT);
-		this.wallLeftGraphics.lineTo(worldX - HALF_TILE_WIDTH, topY);
-		this.wallLeftGraphics.closePath();
-		this.wallLeftGraphics.fillPath();
-		this.wallLeftGraphics.strokePath();
+		graphics.fillStyle(0x8f5a7a, 1);
+		graphics.lineStyle(1, 0x6a3f59, 0.9);
+		graphics.beginPath();
+		graphics.moveTo(worldX - HALF_TILE_WIDTH, worldY);
+		graphics.lineTo(worldX, worldY + HALF_TILE_HEIGHT);
+		graphics.lineTo(worldX, topY + HALF_TILE_HEIGHT);
+		graphics.lineTo(worldX - HALF_TILE_WIDTH, topY);
+		graphics.closePath();
+		graphics.fillPath();
+		graphics.strokePath();
 
-		this.wallRightGraphics.fillStyle(0x4d8f86, 1);
-		this.wallRightGraphics.lineStyle(1, 0x35675f, 0.9);
-		this.wallRightGraphics.beginPath();
-		this.wallRightGraphics.moveTo(worldX + HALF_TILE_WIDTH, worldY);
-		this.wallRightGraphics.lineTo(worldX, worldY + HALF_TILE_HEIGHT);
-		this.wallRightGraphics.lineTo(worldX, topY + HALF_TILE_HEIGHT);
-		this.wallRightGraphics.lineTo(worldX + HALF_TILE_WIDTH, topY);
-		this.wallRightGraphics.closePath();
-		this.wallRightGraphics.fillPath();
-		this.wallRightGraphics.strokePath();
+		graphics.fillStyle(0x4d8f86, 1);
+		graphics.lineStyle(1, 0x35675f, 0.9);
+		graphics.beginPath();
+		graphics.moveTo(worldX + HALF_TILE_WIDTH, worldY);
+		graphics.lineTo(worldX, worldY + HALF_TILE_HEIGHT);
+		graphics.lineTo(worldX, topY + HALF_TILE_HEIGHT);
+		graphics.lineTo(worldX + HALF_TILE_WIDTH, topY);
+		graphics.closePath();
+		graphics.fillPath();
+		graphics.strokePath();
 	}
 }

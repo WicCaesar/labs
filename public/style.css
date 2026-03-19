@@ -45,6 +45,22 @@ textarea {
     filter: url(#world-filter-red-unlocked);
 }
 
+.world-filter-green-unlocked {
+    filter: url(#world-filter-green-unlocked);
+}
+
+.world-filter-red-green-unlocked {
+    filter: url(#world-filter-red-green-unlocked);
+}
+
+.world-filter-red-blue-unlocked {
+    filter: url(#world-filter-red-blue-unlocked);
+}
+
+.world-filter-green-blue-unlocked {
+    filter: url(#world-filter-green-blue-unlocked);
+}
+
 .phaser-host {
     position: absolute;
     width: 1px;
