@@ -1,10 +1,3 @@
-
-Para substituir as mecânicas de exploração por alternativas que beneficiem mais o arquétipo de jogador **Achiever** (do framework Octalysis), é importante focar em sistemas que recompensem a **progressão**, **conquistas** e **mastery** (domínio de habilidades). O arquétipo Achiever é motivado por metas claras, desafios significativos e recompensas tangíveis que simbolizam progresso e realização.
-
-Aqui estão algumas sugestões de substituição ou adaptação das mecânicas de exploração, mantendo a premissa do jogo:
-
----
-
 ### 1. **Sistema de Conquistas e Metas Secundárias**
 - **Substituição:** Em vez de explorar os andares da torre para encontrar artefatos ou lore, introduza um sistema de **desafios específicos** por andar ou ato.
 - **Exemplo de mecânica:**
@@ -84,8 +77,3 @@ Aqui estão algumas sugestões de substituição ou adaptação das mecânicas d
   - Títulos como "Guardião do Vermelho" ou "Mestre das Cores" são desbloqueados ao completar desafios específicos.
   - Esses títulos podem ser exibidos no perfil do jogador ou usados para desbloquear diálogos exclusivos com NPCs.
 - **Benefício para Achievers:** Oferece reconhecimento tangível e incentiva o jogador a buscar todas as conquistas.
-
----
-
-### Conclusão
-Essas substituições mantêm a premissa do jogo intacta (restaurar as cores do mundo, subir a torre, enfrentar desafios temáticos), mas eliminam a necessidade de exploração livre. Elas focam em sistemas que recompensam o progresso, o domínio e as conquistas, alinhando-se melhor com as motivações do arquétipo Achiever.
