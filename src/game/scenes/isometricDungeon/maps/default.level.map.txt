@@ -1,0 +1,27 @@
+# Dungeon Level One (16x16)
+# Legend:
+# 0 = walkable floor
+# 1 = blocked wall/obstacle
+# x = blocked border/wall (same collision as 1, easier to read border)
+# P = player spawn
+# N = friendly NPC spawn
+# E = enemy NPC spawn
+# S = staircase/exit tile
+# i = interactable object marker
+
+1111111111111111
+1000000000000001
+10P0000000000001
+1000010000100001
+1001010000101001
+1000010000000001
+1000010000100001
+1001111101111001
+10000100S0100001
+1000000000100001
+1000010000100001
+1001010000101001
+100001000010N001
+1000i00000000001
+1000000000000001
+1111111111111111

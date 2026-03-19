@@ -3,12 +3,39 @@ export type AppEventMap = {
 		mode: 'none' | 'grayscale' | 'blue-unlocked' | 'red-unlocked';
 	};
 	'dungeon:hud-state-changed': {
-		level: 1 | 2;
+		level: 1 | 2 | 3;
 		status: string;
 		hint: string;
 		objective: string;
 		canInteract: boolean;
-		state: 'level-one-hunt-blue' | 'level-one-blue-unlocked' | 'level-two-hunt-red' | 'complete';
+		state:
+			| 'level-one-hunt-blue'
+			| 'level-one-blue-unlocked'
+			| 'level-two-hunt-red'
+			| 'level-two-red-unlocked'
+			| 'level-three-hunt-yellow'
+			| 'complete';
+	};
+	'dungeon:quiz-requested': {
+		quizId: 'blue' | 'yellow';
+		segment: 1 | 2 | 3 | 4 | 5;
+		questionCount: number;
+	};
+	'ui:dungeon-quiz-finished': {
+		quizId: 'blue' | 'yellow';
+		passed: boolean;
+		correctAnswers: number;
+		totalQuestions: number;
+	};
+	'ui:dungeon-quiz-cancelled': {
+		quizId: 'blue' | 'yellow';
+	};
+	'dungeon:interactable-activated': {
+		level: 1 | 2 | 3;
+		type: 'interactable' | 'push-block';
+		position: { x: number; y: number };
+		message: string;
+		durationMs: number;
 	};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';

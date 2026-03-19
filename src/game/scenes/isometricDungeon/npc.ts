@@ -7,7 +7,7 @@ import {
 	PLAYER_SCALE,
 	TILE_HEIGHT
 } from './constants';
-import { directionFromVector, randomDirection, tryMoveEntity } from './navigation';
+import { directionFromVector, projectIsoDirectionToScreen, randomDirection, tryMoveEntity } from './navigation';
 import type { DirectionKey, Vec2 } from './types';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
@@ -70,7 +70,7 @@ export function updateNpcMovement(
 		return;
 	}
 
-	npc.facing = directionFromVector(norm);
+	npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
 	npc.sprite.setTexture(DIRECTION_TO_FRAME[npc.facing]);
 }
 
@@ -110,13 +110,13 @@ export function updateEnemyNpcMovement(
 				y: npc.direction.y / directionLength
 			};
 			tryMoveEntity(npc.gridPos, fallbackNorm, distance * 0.85, map, worldWidth, worldHeight);
-			npc.facing = directionFromVector(fallbackNorm);
+			npc.facing = directionFromVector(projectIsoDirectionToScreen(fallbackNorm));
 			npc.sprite.setTexture(DIRECTION_TO_FRAME[npc.facing]);
 		}
 		return;
 	}
 
-	npc.facing = directionFromVector(norm);
+	npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
 	npc.sprite.setTexture(DIRECTION_TO_FRAME[npc.facing]);
 }
 

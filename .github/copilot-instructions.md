@@ -22,6 +22,40 @@
 - Keep EventBus payloads typed and stable; treat event names as public contract.
 - Prefer constants/enums for **scene keys, EventBus event names, and asset keys** instead of scattering raw strings.
 
+## Modularity-first implementation rule
+- Always prioritize modularity and reuse over one-off implementations.
+- New features must be designed as reusable modules/components/services/contracts, not hard-wired to a single scenario.
+- Example: if implementing a quiz for one gameplay goal (such as unlocking blue), structure it so it can be reused for future goals, scenes, or UI flows with minimal changes.
+- Prefer explicit extension points (typed config, typed callbacks/events, typed result payloads) so future consumers can adopt the feature without refactoring core logic.
+
+## Twelve-Factor App fundamentals (from https://12factor.net/)
+- **Codebase**: one codebase tracked in version control, deployed to multiple environments.
+- **Dependencies**: explicitly declare and isolate dependencies (no implicit global runtime assumptions).
+- **Config**: store environment-specific config outside code (environment variables), keep code environment-agnostic.
+- **Backing services**: treat databases, queues, and external APIs as attached resources via config.
+- **Build, release, run**: keep these as distinct stages with reproducible build outputs.
+- **Processes**: execute the app as stateless processes where possible; persist state in backing services.
+- **Port binding**: self-contained service exposes functionality via configured port/runtime binding.
+- **Concurrency**: scale through process model and clear workload boundaries.
+- **Disposability**: favor fast startup and graceful shutdown for resilience and operability.
+- **Dev/prod parity**: keep development, staging, and production as similar as practical.
+- **Logs**: treat logs as event streams (emit to stdout/stderr, avoid coupling to local files as primary sink).
+- **Admin processes**: run one-off admin/migration/debug tasks as code in the same environment and dependency model.
+
+## Code comments and cross-file contracts
+- Add succinct, high-value comments for complex logic, non-obvious algorithms, and important tradeoffs.
+- Add comments especially where code communicates with other files/modules through public contracts (EventBus events, shared types, protocol payloads, scene/UI boundaries).
+- Keep comments accurate and maintenance-friendly; prefer intent and invariants over narrating obvious syntax.
+
+## PR checklist (required for substantial changes)
+- Architecture boundary respected: React handles UI, Phaser handles game world, and cross-layer communication goes through typed EventBus events.
+- Modularity validated: new feature is reusable and extensible (not hard-wired to a single use case).
+- Contract safety checked: event names, payload types, shared constants, and public interfaces remain stable or are versioned/migrated clearly.
+- Twelve-Factor alignment reviewed: dependencies explicit, config externalized, build/release/run separation preserved, logs emitted as streams.
+- Comment coverage adequate: complex logic and cross-file integration points include succinct intent-focused comments.
+- Responsiveness and input tested: mobile + desktop layout, pointer/touch, and keyboard accessibility verified.
+- TypeScript/build quality green: strict typing passes and project build succeeds (`npm run build` or `npm run build-nolog`).
+
 ## Gameplay code organization preferences
 - Keep scene `update()` methods thin; move substantial gameplay logic into focused helpers, controllers, or systems instead of large inline branches.
 - Prefer **finite state machines** for entity/gameplay modes when behavior grows beyond a simple boolean or one-off flag.
