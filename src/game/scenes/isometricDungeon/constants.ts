@@ -5,6 +5,7 @@ export const TILE_HEIGHT = 32;
 export const HALF_TILE_WIDTH = TILE_WIDTH / 2;
 export const HALF_TILE_HEIGHT = TILE_HEIGHT / 2;
 
+// Speeds are expressed in grid-units per second (not pixels/sec).
 export const PLAYER_SPEED = 4;
 export const NPC_SPEED = 2.5;
 export const PLAYER_SCALE = 1.2;

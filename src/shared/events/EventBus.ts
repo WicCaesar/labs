@@ -1,3 +1,5 @@
+// Public filter contract between Phaser scene state and React UI rendering.
+// Combination modes represent which RGB channels are currently unlocked.
 export type WorldColorFilterMode =
 	| 'none'
 	| 'grayscale'

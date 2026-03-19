@@ -5,6 +5,7 @@ export type Help2Card = {
 	value: Help2CardValue;
 };
 
+// Card value maps directly to how many wrong alternatives can be removed.
 export const HELP2_CARD_META: Record<Help2CardValue, { title: string; suit: string; removed: number }> = {
 	0: { title: 'Rei', suit: '♣', removed: 0 },
 	1: { title: 'Ás', suit: '♠', removed: 1 },
@@ -33,6 +34,7 @@ export const getHelp2CardValues = (optionCount: number): Help2CardValue[] => {
 export const shuffled = <T,>(values: readonly T[]): T[] => {
 	const copy = [...values];
 
+	// Shared Fisher-Yates helper used by both standalone and dungeon quiz flows.
 	for (let i = copy.length - 1; i > 0; i -= 1) {
 		const j = Math.floor(Math.random() * (i + 1));
 		[copy[i], copy[j]] = [copy[j], copy[i]];

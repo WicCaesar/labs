@@ -24,6 +24,7 @@ const FACING_TO_ISO_DELTA: Record<DirectionKey, Vec2> = {
 	'north-west': { x: -1, y: 0 }
 };
 
+// Keep block depth tied to its base world Y so actors behind it get occluded.
 const PUSH_BLOCK_DEPTH_OFFSET = HALF_TILE_HEIGHT;
 
 export const getPushDeltaFromFacing = (facing: DirectionKey): Vec2 => FACING_TO_ISO_DELTA[facing];
@@ -92,13 +93,24 @@ function drawObstacleStyleBlock(graphics: Phaser.GameObjects.Graphics, worldX: n
 	graphics.fillPath();
 	graphics.strokePath();
 
-	if (kind === 'slide') {
-		graphics.lineStyle(2, 0xf6d34f, 0.95);
-		graphics.beginPath();
-		graphics.moveTo(worldX - HALF_TILE_WIDTH * 0.45, topY + HALF_TILE_HEIGHT * 0.05);
-		graphics.lineTo(worldX + HALF_TILE_WIDTH * 0.45, topY - HALF_TILE_HEIGHT * 0.05);
-		graphics.strokePath();
+	// Visual convention:
+	// - step block: one line
+	// - slide block: two parallel lines
+	graphics.lineStyle(2, 0xf6d34f, 0.95);
+	if (kind === 'step') {
+		drawVerticalTopMarkerLine(graphics, worldX, topY);
+		return;
 	}
+
+	drawVerticalTopMarkerLine(graphics, worldX - HALF_TILE_WIDTH * 0.14, topY);
+	drawVerticalTopMarkerLine(graphics, worldX + HALF_TILE_WIDTH * 0.14, topY);
+}
+
+function drawVerticalTopMarkerLine(graphics: Phaser.GameObjects.Graphics, x: number, topY: number) {
+	graphics.beginPath();
+	graphics.moveTo(x, topY - HALF_TILE_HEIGHT * 0.34);
+	graphics.lineTo(x, topY + HALF_TILE_HEIGHT * 0.34);
+	graphics.strokePath();
 }
 
 export function findPushBlockAtTile(blocks: PushBlockState[], tileX: number, tileY: number): PushBlockState | null {

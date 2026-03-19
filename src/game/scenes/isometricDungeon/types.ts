@@ -8,4 +8,5 @@ export type DirectionKey =
 	| 'west'
 	| 'north-west';
 
+// Shared 2D coordinate type used for both grid-space and world-space tuples.
 export type Vec2 = { x: number; y: number };

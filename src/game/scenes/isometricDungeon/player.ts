@@ -5,6 +5,7 @@ import type { DirectionKey, Vec2 } from './types';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 
+// Tiny positive offset keeps feet visually anchored to floor tiles.
 const PLAYER_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
 
 export type PlayerState = {
@@ -43,6 +44,7 @@ export function updatePlayerMovement(
 
 	const distance = (PLAYER_SPEED * delta) / 1000;
 	const length = Math.hypot(move.x, move.y);
+	// Normalize so diagonal input does not move faster than cardinal input.
 	const norm = {
 		x: move.x / length,
 		y: move.y / length

@@ -12,6 +12,7 @@ import type { DirectionKey, Vec2 } from './types';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 
+// Matches player grounding offset so both actor types sit on the same floor plane.
 const NPC_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
 
 export type NpcState = {
@@ -49,6 +50,7 @@ export function updateNpcMovement(
 ) {
 	npc.decisionTimer -= delta;
 	if (npc.decisionTimer <= 0) {
+		// Wander AI picks a fresh random direction at timed intervals.
 		npc.direction = randomDirection();
 		npc.decisionTimer = Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS);
 	}
@@ -107,6 +109,7 @@ export function updateEnemyNpcMovement(
 		npc.decisionTimer = Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS);
 		const directionLength = Math.hypot(npc.direction.x, npc.direction.y);
 		if (directionLength > 0) {
+			// Chaser fallback prevents full stalls when direct path is blocked.
 			const fallbackNorm = {
 				x: npc.direction.x / directionLength,
 				y: npc.direction.y / directionLength

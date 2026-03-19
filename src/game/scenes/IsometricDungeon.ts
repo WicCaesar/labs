@@ -470,9 +470,12 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private getWorldColorFilterMode(): WorldColorFilterMode {
 		const red = this.redUnlocked;
+		// The yellow quiz restores the green RGB channel for additive color mixing.
 		const green = this.yellowUnlocked;
 		const blue = this.blueUnlocked;
 
+		// Order matters: we resolve 3-channel first, then 2-channel combinations,
+		// then single-channel states, finally grayscale fallback.
 		if (red && green && blue) {
 			return 'none';
 		}
@@ -535,6 +538,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.collisionMap.push([...this.map[y]]);
 		}
 
+		// Push blocks are dynamic blockers layered on top of static wall map data.
 		for (const block of this.pushBlocks) {
 			if (block.position.y < 0 || block.position.y >= this.mapHeight || block.position.x < 0 || block.position.x >= this.mapWidth) {
 				continue;
@@ -617,6 +621,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		let destination: Vec2 | null = null;
 		if (block.kind === 'step') {
+			// Step blocks move exactly one tile.
 			const nextTile = {
 				x: block.position.x + pushDelta.x,
 				y: block.position.y + pushDelta.y
@@ -626,6 +631,7 @@ export class IsometricDungeon extends Phaser.Scene {
 				destination = nextTile;
 			}
 		} else {
+			// Slide blocks keep traveling until the next tile would be blocked.
 			let cursor = { ...block.position };
 			while (true) {
 				const nextTile = {

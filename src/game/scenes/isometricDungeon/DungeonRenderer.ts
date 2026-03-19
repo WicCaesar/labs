@@ -11,6 +11,8 @@ import type { Vec2 } from './types';
 export class DungeonRenderer {
 	private floorGraphics?: Phaser.GameObjects.Graphics;
 
+	// Walls are split into one Graphics object per tile so each can receive
+	// a depth based on its world Y and occlude entities correctly.
 	private wallBlocks: Phaser.GameObjects.Graphics[] = [];
 
 	constructor(private readonly scene: Phaser.Scene) {}
@@ -49,6 +51,7 @@ export class DungeonRenderer {
 				if (isWall) {
 					const wallBlock = this.scene.add.graphics();
 					this.drawWallBlock(wallBlock, world.x, world.y);
+					// Depth by world Y simulates painter's algorithm in isometric scenes.
 					wallBlock.setDepth(world.y + HALF_TILE_HEIGHT);
 					this.wallBlocks.push(wallBlock);
 				}

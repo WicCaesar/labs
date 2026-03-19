@@ -19,6 +19,8 @@ const config: Types.Core.GameConfig = {
 };
 
 const StartGame = (parent: string, startScene: SceneKey = SCENE_KEYS.QUIZ_GAME) => {
+	// Phaser starts from the first scene in the array, so we place the requested
+	// scene first while still registering both scenes for later switching.
     const orderedScenes = startScene === SCENE_KEYS.ISOMETRIC_DUNGEON
         ? [IsometricDungeon, MainGame]
         : [MainGame, IsometricDungeon];

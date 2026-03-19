@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { RANDOM_DIRECTION_CHOICES } from './constants';
 import type { DirectionKey, Vec2 } from './types';
 
-const ENTITY_COLLISION_RADIUS = 0.35;
+// Radius in tile-space used to keep sprites from visually clipping into blocked cells.
+const ENTITY_COLLISION_RADIUS = 0.31;
 
 function isBlockedTile(map: number[][], tileX: number, tileY: number, worldWidth: number, worldHeight: number): boolean {
 	if (tileX < 0 || tileY < 0 || tileX >= worldWidth || tileY >= worldHeight) {
@@ -60,6 +61,8 @@ export function tryMoveEntity(
 		return true;
 	}
 
+	// If diagonal movement is blocked, try each axis independently to allow
+	// smooth sliding along walls instead of fully stopping.
 	const xOnly = startX + direction.x * distance;
 	if (isWalkable(map, xOnly, startY, worldWidth, worldHeight)) {
 		position.x = xOnly;

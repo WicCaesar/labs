@@ -144,6 +144,7 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 			}
 
 			const passed = prev.correctAnswers >= prev.questionCount;
+			// Dungeon contract: Phaser receives only final quiz outcome, not per-question state.
 			EventBus.emit('ui:dungeon-quiz-finished', {
 				quizId: prev.quizId,
 				passed,
@@ -330,6 +331,7 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 			window.clearTimeout(dungeonAutoAdvanceTimeoutRef.current);
 		}
 
+		// Auto-advance keeps dungeon quiz pacing snappy without extra confirm clicks.
 		dungeonAutoAdvanceTimeoutRef.current = window.setTimeout(() => {
 			nextDungeonQuizQuestion();
 			dungeonAutoAdvanceTimeoutRef.current = null;
@@ -357,6 +359,7 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 			window.clearTimeout(dungeonHelp2ResolveTimeoutRef.current);
 		}
 
+		// Resolve drawn card with a short reveal delay to preserve game-show cadence.
 		dungeonHelp2ResolveTimeoutRef.current = window.setTimeout(() => {
 			setDungeonQuiz((prev) => {
 				if (!prev.isOpen) {
