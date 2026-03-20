@@ -723,11 +723,16 @@ export class IsometricDungeon extends Phaser.Scene {
 					snowball.graphics.destroy();
 
 					if (snowball.targetNpc.health <= 0) {
-						snowball.targetNpc.sprite.setVisible(false);
-						snowball.targetNpc.healthBarBg.setVisible(false);
-						snowball.targetNpc.healthBarFill.setVisible(false);
+						snowball.targetNpc.sprite.destroy();
+						snowball.targetNpc.healthBarBg.destroy();
+						snowball.targetNpc.healthBarFill.destroy();
 
-						const allEnemiesDefeated = this.npcs.every(npc => npc.health <= 0);
+						const index = this.npcs.indexOf(snowball.targetNpc);
+						if (index > -1) {
+							this.npcs.splice(index, 1);
+						}
+
+						const allEnemiesDefeated = this.npcs.length === 0;
 						if (allEnemiesDefeated) {
 							this.killEnemyUnlockRed();
 						}
