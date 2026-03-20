@@ -2,10 +2,15 @@ import type { Vec2 } from './types';
 
 export type DungeonMarkerType = 'interactable' | 'button';
 
-export type DungeonMarker = {
-	type: DungeonMarkerType;
-	position: Vec2;
-};
+export type DungeonMarker =
+	| {
+		type: 'interactable';
+		position: Vec2;
+	}
+	| {
+		type: 'button';
+		position: Vec2;
+	};
 
 export type DungeonPushBlockKind = 'step' | 'slide';
 

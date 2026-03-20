@@ -59,6 +59,8 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private readonly exitUnlockedByLevel = new Map<DungeonLevelId, boolean>();
 
+	private exitSparkleTimer: Phaser.Time.TimerEvent | null = null;
+
 	private level2RespawnPoint: Vec2 = { x: 2, y: 2 };
 
 	private mapWidth = 0;
@@ -143,6 +145,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.scale.on('resize', this.handleResize, this);
 		this.events.once('shutdown', () => {
+			this.stopExitSparkleLoop();
 			this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
 			this.unsubscribeHandlers.length = 0;
 			this.emitHudState({
@@ -243,9 +246,9 @@ export class IsometricDungeon extends Phaser.Scene {
 		const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(world.x, world.y);
 
-		if (level.npcSpawn && level.npcRole) {
+		if (level.npcSpawn && level.npcRole && level.npcBehavior) {
 			const npcSpawn = this.ensureWalkable(level.npcSpawn);
-			this.npc = spawnNpc(this, npcSpawn, isoToWorld);
+			this.npc = spawnNpc(this, npcSpawn, isoToWorld, level.npcBehavior);
 			const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
 			this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
 		}
@@ -967,6 +970,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		const level = this.levels[this.currentLevel];
 		if (!level.exitTile) {
+			this.stopExitSparkleLoop();
 			this.exitMarkerOuter.setVisible(false);
 			this.exitMarkerInner.setVisible(false);
 			return;
@@ -982,6 +986,11 @@ export class IsometricDungeon extends Phaser.Scene {
 		const wasUnlocked = this.exitUnlockedByLevel.get(this.currentLevel) ?? false;
 		if (exitAvailable && !wasUnlocked) {
 			this.spawnExitUnlockSparkles(world);
+			this.startExitSparkleLoop();
+		} else if (exitAvailable) {
+			this.startExitSparkleLoop();
+		} else {
+			this.stopExitSparkleLoop();
 		}
 		this.exitUnlockedByLevel.set(this.currentLevel, exitAvailable);
 
@@ -996,20 +1005,24 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private spawnExitUnlockSparkles(world: Vec2) {
+		this.spawnExitSparklesAt(world, 14, true);
+		this.cameras.main.flash(180, 120, 220, 255, false);
+	}
+
+	private spawnExitSparklesAt(world: Vec2, sparkleCount: number, strongBurst: boolean) {
 		const sparkleColors = [0xff4fc3, 0x4fd8ff, 0xffe066, 0x7dff7d, 0xff8a65];
-		const sparkleCount = 14;
 
 		for (let index = 0; index < sparkleCount; index += 1) {
-			const angle = (Math.PI * 2 * index) / sparkleCount;
-			const radius = Phaser.Math.Between(10, 24);
+			const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+			const radius = Phaser.Math.Between(strongBurst ? 10 : 6, strongBurst ? 24 : 14);
 			const targetX = world.x + Math.cos(angle) * radius;
-			const targetY = world.y + Math.sin(angle) * (radius * 0.42) - Phaser.Math.Between(10, 20);
+			const targetY = world.y + Math.sin(angle) * (radius * 0.42) - Phaser.Math.Between(8, strongBurst ? 20 : 14);
 			const sparkle = this.add.circle(
 				world.x + Phaser.Math.Between(-2, 2),
 				world.y + Phaser.Math.Between(-2, 2),
-				Phaser.Math.FloatBetween(1.8, 3.2),
+				Phaser.Math.FloatBetween(strongBurst ? 1.8 : 1.2, strongBurst ? 3.2 : 2.3),
 				sparkleColors[index % sparkleColors.length],
-				0.95
+				strongBurst ? 0.95 : 0.8
 			);
 			sparkle.setDepth(world.y + 9.5);
 
@@ -1019,13 +1032,47 @@ export class IsometricDungeon extends Phaser.Scene {
 				y: targetY,
 				alpha: 0,
 				scale: 0.15,
-				duration: Phaser.Math.Between(480, 760),
+				duration: Phaser.Math.Between(strongBurst ? 480 : 380, strongBurst ? 760 : 620),
 				ease: 'Cubic.easeOut',
 				onComplete: () => sparkle.destroy()
 			});
 		}
+	}
 
-		this.cameras.main.flash(180, 120, 220, 255, false);
+	private startExitSparkleLoop() {
+		if (this.exitSparkleTimer) {
+			return;
+		}
+
+		this.exitSparkleTimer = this.time.addEvent({
+			delay: 260,
+			loop: true,
+			callback: () => {
+				const level = this.levels[this.currentLevel];
+				if (!level.exitTile) {
+					return;
+				}
+
+				const exitAvailable =
+					(this.currentLevel === DUNGEON_LEVEL.ONE)
+					|| (this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked)
+					|| (this.currentLevel === DUNGEON_LEVEL.THREE && this.yellowUnlocked)
+					|| (this.currentLevel === DUNGEON_LEVEL.FOUR && this.areAllButtonsPressed());
+				if (!exitAvailable) {
+					return;
+				}
+
+				const world = this.isoToWorld(level.exitTile.x, level.exitTile.y);
+				this.spawnExitSparklesAt(world, Phaser.Math.Between(2, 4), false);
+			}
+		});
+	}
+
+	private stopExitSparkleLoop() {
+		if (this.exitSparkleTimer) {
+			this.exitSparkleTimer.remove(false);
+			this.exitSparkleTimer = null;
+		}
 	}
 
 	private isNearLevelExit(): boolean {
