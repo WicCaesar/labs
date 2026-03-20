@@ -184,8 +184,11 @@ export class IsometricDungeon extends Phaser.Scene {
 			} else {
 				updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 			}
+		}
 
-		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		if (this.npc) {
+			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		}
 
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
@@ -223,11 +226,19 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private drawDungeon() {
+		console.log('drawDungeon() called, map:', this.map.length, 'rows, worldOffset:', this.worldOffsetX, this.worldOffsetY);
+		if (!this.map || this.map.length === 0) {
+			console.error('ERROR: Map is empty or undefined!');
+			return;
+		}
 		this.dungeonRenderer.draw(this.map, this.worldOffsetX, this.worldOffsetY);
+		console.log('drawDungeon() completed');
 	}
 
 	private spawnActorsForLevel() {
+		console.log('spawnActorsForLevel() started');
 		const level = this.levels[this.currentLevel];
+		console.log('Current level:', this.currentLevel, 'Level data:', level);
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
 
 		if (this.player && this.player.sprite) {
@@ -245,18 +256,21 @@ export class IsometricDungeon extends Phaser.Scene {
 		const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(world.x, world.y);
 
-		const npcSpawn = this.ensureWalkable(level.npcSpawn);
-		const isEnemy = level.npcRole === 'enemy';
-		this.npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy);
-		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		let isEnemy = false;
+		if (level.npcSpawn && level.npcBehavior) {
+			const npcSpawn = this.ensureWalkable(level.npcSpawn);
+			isEnemy = level.npcRole === 'enemy';
+			this.npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy, level.npcBehavior);
+			const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
+			this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		}
 
 		for (const [index, spawn] of level.pushBlocks.entries()) {
 			const blockId = `${this.currentLevel}-${spawn.kind}-${spawn.position.x}-${spawn.position.y}-${index}`;
 			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
 		}
 		this.rebuildCollisionMap();
-		if (isEnemy) {
+		if (isEnemy && this.npc) {
 			initializeEnemyGraph(this.npc, this.collisionMap, this.mapWidth, this.mapHeight);
 		}
 		this.renderInteractableMarkers();
@@ -1318,6 +1332,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.renderButtonMarkers();
 		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
-		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		if (this.npc) {
+			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		}
 	}
 }

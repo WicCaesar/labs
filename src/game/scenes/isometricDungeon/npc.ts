@@ -3,12 +3,14 @@ import {
 	DIRECTION_TO_FRAME,
 	NPC_DIRECTION_MIN_MS,
 	NPC_DIRECTION_MAX_MS,
+	NPC_SPEED,
 	PLAYER_SCALE,
 	TILE_HEIGHT
 } from './constants';
 import { directionFromVector, projectIsoDirectionToScreen, randomDirection, tryMoveEntity } from './navigation';
 import { buildGraph, findPath, type Graph } from './pathfinding';
 import type { DirectionKey, Vec2 } from './types';
+import type { DungeonNpcBehavior } from './levelConfig';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 
@@ -64,6 +66,8 @@ export type NpcState = {
 	direction: Vec2;
 	sprite: Phaser.GameObjects.Image;
 	decisionTimer: number;
+	behavior: DungeonNpcBehavior;
+	lookAroundTimer: number;
 	health: number;
 	maxHealth: number;
 	healthBarBg: Phaser.GameObjects.Rectangle;
@@ -78,7 +82,8 @@ export function spawnNpc(
 	scene: Phaser.Scene,
 	spawnPosition: Vec2,
 	isoToWorld: IsoToWorld,
-	isEnemy: boolean
+	isEnemy: boolean,
+	behavior: DungeonNpcBehavior
 ): NpcState {
 	const facing: DirectionKey = 'south';
 	const world = isoToWorld(spawnPosition.x, spawnPosition.y);
@@ -117,6 +122,10 @@ export function spawnNpc(
 		direction: randomDirection(),
 		sprite,
 		decisionTimer: Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS),
+		behavior,
+		lookAroundTimer: behavior.kind === 'friendly-stationary-look-around' 
+			? Phaser.Math.Between(behavior.lookMinMs, behavior.lookMaxMs) 
+			: 0,
 		health: isEnemy ? MAX_HEALTH : MAX_HEALTH,
 		maxHealth: MAX_HEALTH,
 		healthBarBg,
@@ -141,7 +150,7 @@ export function updateNpcMovement(
 ) {
 	if (npc.behavior.kind === 'friendly-stationary-fixed') {
 		if (npc.facing !== npc.behavior.facing) {
-			setNpcFacing(npc, npc.behavior.facing);
+			npc.facing = npc.behavior.facing;
 		}
 		return;
 	}
@@ -151,7 +160,7 @@ export function updateNpcMovement(
 		if (npc.lookAroundTimer <= 0) {
 			const options = LOOK_AROUND_DIRECTIONS.filter((direction) => direction !== npc.facing);
 			const nextFacing = options[Phaser.Math.Between(0, options.length - 1)] ?? npc.facing;
-			setNpcFacing(npc, nextFacing);
+			npc.facing = nextFacing;
 			npc.lookAroundTimer = Phaser.Math.Between(npc.behavior.lookMinMs, npc.behavior.lookMaxMs);
 		}
 		return;
@@ -183,7 +192,7 @@ export function updateNpcMovement(
 		y: npc.direction.y / length
 	};
 
-	const distance = (ENEMY_SPEED * delta) / 1000;
+	const distance = (NPC_SPEED * speedMultiplier * delta) / 1000;
 	const moved = tryMoveEntity(npc.gridPos, norm, distance, map, worldWidth, worldHeight);
 
 	if (!moved) {
@@ -192,7 +201,7 @@ export function updateNpcMovement(
 		return;
 	}
 
-	setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(norm)));
+	npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
 }
 
 function getNextWaypoint(npc: NpcState): Vec2 | null {
@@ -267,12 +276,12 @@ export function updateEnemyNpcMovement(
 				y: npc.direction.y / directionLength
 			};
 			tryMoveEntity(npc.gridPos, fallbackNorm, distance * 0.85, map, worldWidth, worldHeight);
-			setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(fallbackNorm)));
+			npc.facing = directionFromVector(projectIsoDirectionToScreen(fallbackNorm));
 		}
 		return;
 	}
 
-	setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(norm)));
+	npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
 }
 
 export function syncNpcSprite(npc: NpcState, isoToWorld: IsoToWorld, showHealthBar: boolean) {
