@@ -93,7 +93,7 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3,
+		level: 1 as 1 | 2 | 3 | 4,
 		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
 		hint: 'Controles: WASD/Setas + E para interagir',
 		objective: 'Desbloquear azul.',
@@ -180,7 +180,22 @@ export const App = () => {
 			isDungeonMode ? SCENE_KEYS.ISOMETRIC_DUNGEON : SCENE_KEYS.QUIZ_GAME
 		);
 
+		// Prevent AudioContext resume errors on closed contexts
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				// Pause all audio elements when page is hidden
+				document.querySelectorAll('audio').forEach((audio) => {
+					if (!audio.paused) {
+						audio.pause();
+					}
+				});
+			}
+		};
+
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
 		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			game.destroy(true);
 		};
 	}, [isDungeonMode]);

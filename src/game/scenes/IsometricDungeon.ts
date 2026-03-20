@@ -23,7 +23,7 @@ import {
 import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
-import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement, initializeEnemyGraph } from './isometricDungeon/npc';
+import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
 
 export class IsometricDungeon extends Phaser.Scene {
@@ -270,9 +270,6 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
 		}
 		this.rebuildCollisionMap();
-		if (isEnemy && this.npc) {
-			initializeEnemyGraph(this.npc, this.collisionMap, this.mapWidth, this.mapHeight);
-		}
 		this.renderInteractableMarkers();
 		this.renderButtonMarkers();
 	}
