@@ -93,7 +93,7 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3,
+		level: 1 as 1 | 2 | 3 | 4,
 		status: 'Dungeon is in grayscale. Find the wandering penguin.',
 		hint: 'Controls: WASD/Arrows + E to interact',
 		objective: 'Unlock blue.',
@@ -104,6 +104,8 @@ export const App = () => {
 			| 'level-two-hunt-red'
 			| 'level-two-red-unlocked'
 			| 'level-three-hunt-yellow'
+			| 'level-three-yellow-unlocked'
+			| 'level-four-button-puzzle'
 			| 'complete'
 	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);

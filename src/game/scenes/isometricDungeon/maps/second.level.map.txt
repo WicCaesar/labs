@@ -1,20 +1,30 @@
 # Dungeon Level Two (16x16)
-# You can change width/height freely; parser handles variable-size maps.
-# Keep all rows with the same number of symbols.
+# Legend:
+#   (space) = walkable floor
+#   0 = walkable floor
+#   X = blocked wall/obstacle
+#   P = player spawn
+#   N = friendly NPC spawn
+#   E = enemy NPC spawn
+#   S = staircase/exit tile
+#   i = interactable marker
+#   _ = floor button marker
+#   b = push block (step)
+#   s = push block (slide)
 
-1111111111111111
-1000000000000001
-1001001001001E01
-1001001001001001
-1000001111001001
-1001111111111001
-1001001110001001
-1001001111001001
-1001000111001001
-1001001111001001
-1001111101111001
-10010011110i0001
-1001001001001001
-10P10S1001001001
-1000000000000001
-1111111111111111
+XXXXXXXXXXXXXXXX
+X              X
+X  X  X  X  XE X
+X  X  X  X  X  X
+X     XXXX  X  X
+X  XXXXXXXXXX  X
+X  X  XXX   X  X
+X  X  XXXX  X  X
+X  X   XXX  X  X
+X  X  XXXX  X  X
+X  XXXXX XXXX  X
+X  X  XXXX     X
+X  X  X  X  X  X
+X PX SX  X  X  X
+X              X
+XXXXXXXXXXXXXXXX

@@ -3,11 +3,13 @@ import { parseDungeonMap, type DungeonMarker, type DungeonPushBlockSpawn } from 
 import defaultLevelMapRaw from './maps/default.level.map.txt?raw';
 import secondLevelMapRaw from './maps/second.level.map.txt?raw';
 import thirdLevelMapRaw from './maps/third.level.map.txt?raw';
+import fourthLevelMapRaw from './maps/fourth.level.map.txt?raw';
 
 export const DUNGEON_LEVEL = {
 	ONE: 1,
 	TWO: 2,
-	THREE: 3
+	THREE: 3,
+	FOUR: 4
 } as const;
 
 export type DungeonLevelId = typeof DUNGEON_LEVEL[keyof typeof DUNGEON_LEVEL];
@@ -18,6 +20,8 @@ export type DungeonState =
 	| 'level-two-hunt-red'
 	| 'level-two-red-unlocked'
 	| 'level-three-hunt-yellow'
+	| 'level-three-yellow-unlocked'
+	| 'level-four-button-puzzle'
 	| 'complete';
 
 export type DungeonHudState = {
@@ -37,8 +41,8 @@ export type DungeonLevelConfig = {
 	mapWidth: number;
 	mapHeight: number;
 	playerSpawn: Vec2;
-	npcSpawn: Vec2;
-	npcRole: DungeonNpcRole;
+	npcSpawn: Vec2 | null;
+	npcRole: DungeonNpcRole | null;
 	exitTile: Vec2 | null;
 	exitLabel: string | null;
 	markers: DungeonMarker[];
@@ -48,10 +52,9 @@ export type DungeonLevelConfig = {
 export type DungeonInteractableMarker = Extract<DungeonMarker, { type: 'interactable' }>;
 
 function resolveNpcSpawn(
-	levelName: string,
 	friendlyNpcSpawns: Vec2[],
 	enemyNpcSpawns: Vec2[]
-): { npcSpawn: Vec2; npcRole: DungeonNpcRole } {
+): { npcSpawn: Vec2 | null; npcRole: DungeonNpcRole | null } {
 	// Enemy spawn has priority when both are present so level behavior remains explicit.
 	if (enemyNpcSpawns.length > 0) {
 		return {
@@ -67,7 +70,10 @@ function resolveNpcSpawn(
 		};
 	}
 
-	throw new Error(`[${levelName}] missing NPC spawn. Add 'N' or 'E' to the map.`);
+	return {
+		npcSpawn: null,
+		npcRole: null
+	};
 }
 
 function requirePlayerSpawn(levelName: string, spawn: Vec2 | null): Vec2 {
@@ -85,13 +91,16 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 	const levelOneMap = parseDungeonMap(defaultLevelMapRaw, 'level-one');
 	const levelTwoMap = parseDungeonMap(secondLevelMapRaw, 'level-two');
 	const levelThreeMap = parseDungeonMap(thirdLevelMapRaw, 'level-three');
+	const levelFourMap = parseDungeonMap(fourthLevelMapRaw, 'level-four');
 	const levelOnePlayerSpawn = requirePlayerSpawn('level-one', levelOneMap.playerSpawn);
 	const levelTwoPlayerSpawn = requirePlayerSpawn('level-two', levelTwoMap.playerSpawn);
 	const levelThreePlayerSpawn = requirePlayerSpawn('level-three', levelThreeMap.playerSpawn);
+	const levelFourPlayerSpawn = requirePlayerSpawn('level-four', levelFourMap.playerSpawn);
 
-	const levelOneNpc = resolveNpcSpawn('level-one', levelOneMap.friendlyNpcSpawns, levelOneMap.enemyNpcSpawns);
-	const levelTwoNpc = resolveNpcSpawn('level-two', levelTwoMap.friendlyNpcSpawns, levelTwoMap.enemyNpcSpawns);
-	const levelThreeNpc = resolveNpcSpawn('level-three', levelThreeMap.friendlyNpcSpawns, levelThreeMap.enemyNpcSpawns);
+	const levelOneNpc = resolveNpcSpawn(levelOneMap.friendlyNpcSpawns, levelOneMap.enemyNpcSpawns);
+	const levelTwoNpc = resolveNpcSpawn(levelTwoMap.friendlyNpcSpawns, levelTwoMap.enemyNpcSpawns);
+	const levelThreeNpc = resolveNpcSpawn(levelThreeMap.friendlyNpcSpawns, levelThreeMap.enemyNpcSpawns);
+	const levelFourNpc = resolveNpcSpawn(levelFourMap.friendlyNpcSpawns, levelFourMap.enemyNpcSpawns);
 
 	return {
 		[DUNGEON_LEVEL.ONE]: {
@@ -128,10 +137,23 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			playerSpawn: levelThreePlayerSpawn,
 			npcSpawn: levelThreeNpc.npcSpawn,
 			npcRole: levelThreeNpc.npcRole,
-			exitTile: null,
-			exitLabel: null,
+			exitTile: levelThreeMap.exitTile,
+			exitLabel: levelThreeMap.exitTile ? 'Descend' : null,
 			markers: levelThreeMap.markers,
 			pushBlocks: levelThreeMap.pushBlocks
+		},
+		[DUNGEON_LEVEL.FOUR]: {
+			id: DUNGEON_LEVEL.FOUR,
+			map: levelFourMap.map,
+			mapWidth: levelFourMap.width,
+			mapHeight: levelFourMap.height,
+			playerSpawn: levelFourPlayerSpawn,
+			npcSpawn: levelFourNpc.npcSpawn,
+			npcRole: levelFourNpc.npcRole,
+			exitTile: levelFourMap.exitTile,
+			exitLabel: levelFourMap.exitTile ? 'Ascend' : null,
+			markers: levelFourMap.markers,
+			pushBlocks: levelFourMap.pushBlocks
 		}
 	};
 }

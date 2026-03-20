@@ -1,6 +1,6 @@
 import type { Vec2 } from './types';
 
-export type DungeonMarkerType = 'interactable';
+export type DungeonMarkerType = 'interactable' | 'button';
 
 export type DungeonMarker = {
 	type: DungeonMarkerType;
@@ -29,15 +29,11 @@ export type ParsedDungeonMap = {
 const WALKABLE = 0;
 const BLOCKED = 1;
 
-// Map files can include spaces/tabs for readability; parser ignores them.
-const normalizeRow = (row: string): string => row.replace(/[\t ]+/g, '');
-
 export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonMap {
 	const sourceRows = rawMap
 		.split(/\r?\n/g)
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0 && !line.startsWith('#'))
-		.map(normalizeRow)
+		.filter((line) => line.trim().length > 0)
+		.filter((line) => !line.trimStart().startsWith('#'))
 		.filter((line) => line.length > 0);
 
 	if (sourceRows.length === 0) {
@@ -71,6 +67,7 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 			const symbol = sourceRows[y][x];
 			// Symbols define both collision and spawn metadata in one pass.
 			switch (symbol) {
+				case ' ':
 				case '0':
 				case '.':
 					row.push(WALKABLE);
@@ -78,7 +75,6 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 				case '1':
 				case 'x':
 				case 'X':
-				case '#':
 					row.push(BLOCKED);
 					break;
 				case 'P':
@@ -101,6 +97,13 @@ export function parseDungeonMap(rawMap: string, mapName: string): ParsedDungeonM
 					row.push(WALKABLE);
 					markers.push({
 						type: 'interactable',
+						position: { x, y }
+					});
+					break;
+				case '_':
+					row.push(WALKABLE);
+					markers.push({
+						type: 'button',
 						position: { x, y }
 					});
 					break;

@@ -1,18 +1,28 @@
 # Dungeon Level Three (19x14)
-# Final challenge level for yellow unlock quiz (green channel restoration).
-# Keep rows with equal width.
+# Legend:
+#   (space) = walkable floor
+#   0 = walkable floor
+#   X = blocked wall/obstacle
+#   P = player spawn
+#   N = friendly NPC spawn
+#   E = enemy NPC spawn
+#   S = staircase/exit tile
+#   i = interactable marker
+#   _ = floor button marker
+#   b = push block (step)
+#   s = push block (slide)
 
-1111111111111111111
-1000000000000000001
-10P0011111110000001
-1000010000010000001
-1000010000010001001
-1000000000010001001
-1001111000010001001
-1001000000010001001
-1001000111110001001
-1001000b000s0001001
-1001000i0000b001001
-100100000000N000001
-1000000000000000001
-1111111111111111111
+XXXXXXXXXXXXXXXXXXX
+X                 X
+X P  XXXXXXX      X
+X    X     X      X
+X    X     X   X  X
+X          X   X  X
+X  XXXX    X   X  X
+X  X       X   X  X
+X  X   XXXXX   X  X
+X  X   b   s   X  X
+X  X        b  S  X
+X  X        N     X
+X                 X
+XXXXXXXXXXXXXXXXXXX

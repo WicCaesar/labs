@@ -14,13 +14,16 @@ This folder contains plain-text dungeon maps. You can edit them without touching
 ## Symbol Legend
 
 - `0`: Walkable floor
-- `1`: Blocked wall/obstacle
-- `x`: Blocked wall/obstacle (visual alias; same collision as `1`)
+- ` ` (space): Walkable floor (useful for visually cleaner maps)
+- `X`: Blocked wall/obstacle (recommended)
+- `1`: Blocked wall/obstacle (legacy alias)
+- `x`: Blocked wall/obstacle (legacy alias)
 - `P`: Player spawn (walkable tile)
 - `N`: Friendly NPC spawn (walkable tile)
 - `E`: Enemy NPC spawn (walkable tile)
 - `S`: Stairs/exit marker (walkable tile)
 - `i`: Generic interactable marker (walkable tile)
+- `_`: Floor button marker (walkable tile, activated by push blocks)
 - `b`: Push block (moves exactly 1 tile when pushed)
 - `s`: Sliding block (keeps moving until colliding)
 
@@ -28,30 +31,33 @@ This folder contains plain-text dungeon maps. You can edit them without touching
 
 - Lines starting with `#` are comments and ignored.
 - Empty lines are ignored.
-- Spaces/tabs inside a map row are ignored, so you may space symbols for readability.
+- Spaces are real map tiles and are treated as walkable floor.
+- Tabs are not valid map symbols.
 
 ## Example
 
 ```txt
 # 8x6 simple room
-xxxxxxxx
-xP00000x
-x01110ix
-x000000x
-x0000N0x
-xxxxxxxx
+XXXXXXXX
+XP00000X
+X01110iX
+X000000X
+X0000N0X
+XXXXXXXX
 ```
 
 ## How this connects to gameplay
 
-- Collision: tiles `1` and `x` are blocked.
+- Collision: tiles `X`, `1`, and `x` are blocked.
 - Movement: all other symbols are walkable.
 - Spawn points and objects are extracted by the parser and consumed by level config.
 - The isometric renderer projects this grid to isometric view automatically.
 - Interactable marker (`i`): player can press `E` near the marker to trigger an in-game interaction event. The UI receives this via EventBus and shows a message toast.
 - Push block (`b`): when player presses `E` while facing it, the block moves 1 tile if space is free.
 - Sliding block (`s`): when pushed, moves continuously in facing direction until it collides with a wall/object/block.
+- Floor button (`_`): activates when a push block occupies the same tile.
 - In level 3, a friendly NPC (`N`) is used for the final segment-2 quiz that unlocks yellow (implemented as green channel restoration), returning the game to full RGB when blue + red are already unlocked.
+- In level 4, the final gate requires all floor buttons to be pressed by push blocks.
 
 ## Common mistakes
 

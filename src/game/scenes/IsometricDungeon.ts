@@ -20,6 +20,7 @@ import {
 	type DungeonLevelId,
 	type DungeonState
 } from './isometricDungeon/levelConfig';
+import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
 import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
@@ -40,15 +41,23 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private player!: PlayerState;
 
-	private npc!: NpcState;
+	private npc: NpcState | null = null;
 
-	private exitMarker?: Phaser.GameObjects.Ellipse;
+	private exitMarkerOuter?: Phaser.GameObjects.Ellipse;
+
+	private exitMarkerInner?: Phaser.GameObjects.Ellipse;
 
 	private markerVisuals: Phaser.GameObjects.Ellipse[] = [];
+
+	private buttonVisuals: Phaser.GameObjects.Container[] = [];
 
 	private readonly pushBlocks: PushBlockState[] = [];
 
 	private readonly activatedInteractableKeys = new Set<string>();
+
+	private readonly pressedButtonKeys = new Set<string>();
+
+	private readonly exitUnlockedByLevel = new Map<DungeonLevelId, boolean>();
 
 	private level2RespawnPoint: Vec2 = { x: 2, y: 2 };
 
@@ -163,15 +172,18 @@ export class IsometricDungeon extends Phaser.Scene {
 		const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
-		const isEnemyLevel = this.levels[this.currentLevel].npcRole === 'enemy';
-		if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
-			updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
-			this.handleEnemyTouchDamage();
-		} else {
-			updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
-		}
+		const levelNpcRole = this.levels[this.currentLevel].npcRole;
+		if (this.npc) {
+			const isEnemyLevel = levelNpcRole === 'enemy';
+			if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
+				updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
+				this.handleEnemyTouchDamage();
+			} else {
+				updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
+			}
 
-		syncNpcSprite(this.npc, isoToWorld);
+			syncNpcSprite(this.npc, isoToWorld);
+		}
 
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
@@ -194,8 +206,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		} else if (levelId === DUNGEON_LEVEL.TWO) {
 			this.state = this.redUnlocked ? 'level-two-red-unlocked' : 'level-two-hunt-red';
 			this.level2RespawnPoint = { ...level.playerSpawn };
+		} else if (levelId === DUNGEON_LEVEL.THREE) {
+			this.state = this.yellowUnlocked ? 'level-three-yellow-unlocked' : 'level-three-hunt-yellow';
 		} else {
-			this.state = this.yellowUnlocked ? 'complete' : 'level-three-hunt-yellow';
+			this.state = 'level-four-button-puzzle';
 		}
 
 		if (!isInitialLoad) {
@@ -220,6 +234,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		if (this.npc && this.npc.sprite) {
 			this.npc.sprite.destroy();
 		}
+		this.npc = null;
 		this.pushBlocks.forEach((block) => block.sprite.destroy());
 		this.pushBlocks.length = 0;
 
@@ -228,17 +243,21 @@ export class IsometricDungeon extends Phaser.Scene {
 		const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(world.x, world.y);
 
-		const npcSpawn = this.ensureWalkable(level.npcSpawn);
-		this.npc = spawnNpc(this, npcSpawn, isoToWorld);
-		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		if (level.npcSpawn && level.npcRole) {
+			const npcSpawn = this.ensureWalkable(level.npcSpawn);
+			this.npc = spawnNpc(this, npcSpawn, isoToWorld);
+			const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
+			this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		}
 
 		for (const [index, spawn] of level.pushBlocks.entries()) {
 			const blockId = `${this.currentLevel}-${spawn.kind}-${spawn.position.x}-${spawn.position.y}-${index}`;
 			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
 		}
 		this.rebuildCollisionMap();
+		this.refreshButtonActivation(false);
 		this.renderInteractableMarkers();
+		this.renderButtonMarkers();
 	}
 
 	private createInput() {
@@ -287,7 +306,7 @@ export class IsometricDungeon extends Phaser.Scene {
 				return;
 			}
 
-			const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+			const nearNpc = this.isPlayerNearNpc();
 			if (nearNpc) {
 				this.startBlueUnlockQuiz();
 				return;
@@ -309,7 +328,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		if (this.state === 'level-two-hunt-red' && !this.redUnlocked) {
-			const nearEnemy = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+			const nearEnemy = this.isPlayerNearNpc();
 			if (nearEnemy) {
 				this.killEnemyUnlockRed();
 				return;
@@ -331,9 +350,41 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		if (this.state === 'level-three-hunt-yellow') {
-			const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+			const nearNpc = this.isPlayerNearNpc();
 			if (nearNpc) {
 				this.startYellowUnlockQuiz();
+				return;
+			}
+
+			this.tryActivateNearbyInteractable();
+			return;
+		}
+
+		if (this.state === 'level-three-yellow-unlocked') {
+			const canDescend = this.isNearLevelExit();
+			if (canDescend) {
+				this.transitionToFourthLevel();
+				return;
+			}
+
+			this.tryActivateNearbyInteractable();
+			return;
+		}
+
+		if (this.state === 'level-four-button-puzzle') {
+			const nearExit = this.isNearLevelExit();
+			if (nearExit) {
+				if (this.areAllButtonsPressed()) {
+					this.completeFourthLevel();
+				} else {
+					EventBus.emit('dungeon:interactable-activated', {
+						level: this.currentLevel,
+						type: 'button',
+						position: { ...this.levels[this.currentLevel].exitTile! },
+						message: 'The gate is sealed. Press every floor button with push blocks.',
+						durationMs: 2200
+					});
+				}
 				return;
 			}
 
@@ -356,7 +407,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private startBlueUnlockQuiz() {
-		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE) {
+		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || !this.npc) {
 			return;
 		}
 
@@ -371,7 +422,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private startYellowUnlockQuiz() {
-		if (this.yellowUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.THREE) {
+		if (this.yellowUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.THREE || !this.npc) {
 			return;
 		}
 
@@ -439,7 +490,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private killEnemyUnlockRed() {
-		if (this.redUnlocked) {
+		if (this.redUnlocked || !this.npc) {
 			return;
 		}
 
@@ -457,9 +508,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.yellowUnlocked = true;
-		this.state = 'complete';
+		this.state = 'level-three-yellow-unlocked';
 		this.emitWorldColorFilterState();
 		this.cameras.main.flash(420, 120, 255, 120);
+		this.updateLevelMarker();
 	}
 
 	private emitWorldColorFilterState() {
@@ -515,8 +567,33 @@ export class IsometricDungeon extends Phaser.Scene {
 		});
 	}
 
+	private transitionToFourthLevel() {
+		this.cameras.main.fadeOut(260, 20, 20, 30);
+		this.time.delayedCall(280, () => {
+			this.loadLevel(DUNGEON_LEVEL.FOUR);
+			this.cameras.main.fadeIn(260, 20, 20, 30);
+		});
+	}
+
+	private completeFourthLevel() {
+		if (this.state === 'complete') {
+			return;
+		}
+
+		this.state = 'complete';
+		this.cameras.main.flash(420, 255, 220, 120);
+		EventBus.emit('dungeon:interactable-activated', {
+			level: this.currentLevel,
+			type: 'button',
+			position: { ...this.levels[this.currentLevel].exitTile! },
+			message: 'All buttons activated. The dungeon challenge is complete.',
+			durationMs: 2200
+		});
+		this.updateLevelMarker();
+	}
+
 	private handleEnemyTouchDamage() {
-		if (this.redUnlocked) {
+		if (this.redUnlocked || !this.npc) {
 			return;
 		}
 
@@ -578,7 +655,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			}
 		}
 
-		if (this.npc.sprite.visible) {
+		if (this.npc && this.npc.sprite.visible) {
 			const npcTile = {
 				x: Math.round(this.npc.gridPos.x),
 				y: Math.round(this.npc.gridPos.y)
@@ -594,6 +671,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		for (const marker of level.markers) {
+			if (marker.type === 'button') {
+				continue;
+			}
+
 			if (marker.position.x === tileX && marker.position.y === tileY) {
 				return true;
 			}
@@ -665,6 +746,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		block.position = destination;
 		syncPushBlockSprite(block, (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY));
 		this.rebuildCollisionMap();
+		this.refreshButtonActivation(true);
 
 		EventBus.emit('dungeon:interactable-activated', {
 			level: this.currentLevel,
@@ -702,7 +784,8 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private createLevelMarker() {
-		this.exitMarker = this.add.ellipse(0, 0, 26, 14, 0x0b0b0b, 0.8).setDepth(8);
+		this.exitMarkerOuter = this.add.ellipse(0, 0, 30, 16, 0x2f3b45, 0.9).setDepth(8);
+		this.exitMarkerInner = this.add.ellipse(0, 0, 22, 11, 0x06080b, 0.96).setDepth(8.1);
 		this.updateLevelMarker();
 	}
 
@@ -729,6 +812,95 @@ export class IsometricDungeon extends Phaser.Scene {
 			visual.setDepth(world.y + 7);
 			this.markerVisuals.push(visual);
 		}
+	}
+
+	private renderButtonMarkers() {
+		this.buttonVisuals.forEach((visual) => visual.destroy());
+		this.buttonVisuals.length = 0;
+
+		for (const marker of this.getButtonMarkers()) {
+			const world = this.isoToWorld(marker.position.x, marker.position.y);
+			const pressed = this.isButtonPressed(marker);
+			const buttonY = world.y;
+			const plate = this.add.ellipse(0, 0, 24, 12, 0x303841, 0.95);
+			const ring = this.add.ellipse(0, 0, 18, 9, 0x868f98, 0.95);
+			const cap = this.add.ellipse(
+				0,
+				pressed ? 1.2 : -1.0,
+				12,
+				6,
+				pressed ? 0x42a55a : 0xc17f3b,
+				0.96
+			);
+			const shine = this.add.ellipse(
+				-2.2,
+				pressed ? 0.2 : -2.1,
+				4,
+				2,
+				0xffffff,
+				pressed ? 0.2 : 0.35
+			);
+
+			const visual = this.add.container(world.x, buttonY, [plate, ring, cap, shine]);
+			visual.setDepth(world.y + 6.6);
+			this.buttonVisuals.push(visual);
+		}
+	}
+
+	private getButtonMarkers(): Array<Extract<DungeonMarker, { type: 'button' }>> {
+		return this.levels[this.currentLevel].markers.filter((marker) => marker.type === 'button');
+	}
+
+	private isButtonPressed(marker: Extract<DungeonMarker, { type: 'button' }>): boolean {
+		const key = this.getMarkerKey(this.currentLevel, marker);
+		return this.pressedButtonKeys.has(key);
+	}
+
+	private refreshButtonActivation(emitEvents: boolean) {
+		const nextPressedKeys = new Set<string>();
+		for (const marker of this.getButtonMarkers()) {
+			const hasBlock = findPushBlockAtTile(this.pushBlocks, marker.position.x, marker.position.y) !== null;
+			if (hasBlock) {
+				nextPressedKeys.add(this.getMarkerKey(this.currentLevel, marker));
+			}
+		}
+
+		if (emitEvents) {
+			for (const marker of this.getButtonMarkers()) {
+				const key = this.getMarkerKey(this.currentLevel, marker);
+				const wasPressed = this.pressedButtonKeys.has(key);
+				const isPressed = nextPressedKeys.has(key);
+				if (wasPressed === isPressed) {
+					continue;
+				}
+
+				EventBus.emit('dungeon:interactable-activated', {
+					level: this.currentLevel,
+					type: 'button',
+					position: marker.position,
+					message: isPressed
+						? `Button pressed at (${marker.position.x}, ${marker.position.y}).`
+						: `Button released at (${marker.position.x}, ${marker.position.y}).`,
+					durationMs: 1800
+				});
+			}
+		}
+
+		this.pressedButtonKeys.clear();
+		nextPressedKeys.forEach((key) => this.pressedButtonKeys.add(key));
+		this.renderButtonMarkers();
+
+		if (this.currentLevel === DUNGEON_LEVEL.FOUR) {
+			if (this.state !== 'complete') {
+				this.state = 'level-four-button-puzzle';
+			}
+			this.updateLevelMarker();
+		}
+	}
+
+	private areAllButtonsPressed(): boolean {
+		const buttons = this.getButtonMarkers();
+		return buttons.length > 0 && this.pressedButtonKeys.size === buttons.length;
 	}
 
 	private getNearestInteractable(): DungeonInteractableMarker | null {
@@ -759,7 +931,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		return nearest;
 	}
 
-	private getMarkerKey(levelId: DungeonLevelId, marker: DungeonInteractableMarker): string {
+	private getMarkerKey(levelId: DungeonLevelId, marker: Pick<DungeonMarker, 'type' | 'position'>): string {
 		return `${levelId}:${marker.type}:${marker.position.x}:${marker.position.y}`;
 	}
 
@@ -789,22 +961,71 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private updateLevelMarker() {
-		if (!this.exitMarker) {
+		if (!this.exitMarkerOuter || !this.exitMarkerInner) {
 			return;
 		}
 
 		const level = this.levels[this.currentLevel];
 		if (!level.exitTile) {
-			this.exitMarker.setVisible(false);
+			this.exitMarkerOuter.setVisible(false);
+			this.exitMarkerInner.setVisible(false);
 			return;
 		}
 
-		const world = this.isoToWorld(level.exitTile.x + 0.5, level.exitTile.y + 0.5);
-		const exitAvailable = this.currentLevel !== DUNGEON_LEVEL.TWO || this.redUnlocked;
-		this.exitMarker.setVisible(true);
-		this.exitMarker.setPosition(world.x, world.y - TILE_HEIGHT * 0.16);
-		this.exitMarker.setFillStyle(exitAvailable ? 0x111111 : 0x2c2c2c, exitAvailable ? 0.88 : 0.58);
-		this.exitMarker.setDepth(world.y + 8);
+		const world = this.isoToWorld(level.exitTile.x, level.exitTile.y);
+		const exitAvailable =
+			(this.currentLevel === DUNGEON_LEVEL.ONE)
+			|| (this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked)
+			|| (this.currentLevel === DUNGEON_LEVEL.THREE && this.yellowUnlocked)
+			|| (this.currentLevel === DUNGEON_LEVEL.FOUR && this.areAllButtonsPressed());
+		const markerY = world.y;
+		const wasUnlocked = this.exitUnlockedByLevel.get(this.currentLevel) ?? false;
+		if (exitAvailable && !wasUnlocked) {
+			this.spawnExitUnlockSparkles(world);
+		}
+		this.exitUnlockedByLevel.set(this.currentLevel, exitAvailable);
+
+		this.exitMarkerOuter.setVisible(true);
+		this.exitMarkerInner.setVisible(true);
+		this.exitMarkerOuter.setPosition(world.x, markerY);
+		this.exitMarkerInner.setPosition(world.x, markerY + (exitAvailable ? 0.5 : 0));
+		this.exitMarkerOuter.setFillStyle(exitAvailable ? 0x3b4a56 : 0x2b343c, exitAvailable ? 0.94 : 0.84);
+		this.exitMarkerInner.setFillStyle(exitAvailable ? 0x0d1218 : 0x171d23, exitAvailable ? 0.98 : 0.94);
+		this.exitMarkerOuter.setDepth(world.y + 7.9);
+		this.exitMarkerInner.setDepth(world.y + 8);
+	}
+
+	private spawnExitUnlockSparkles(world: Vec2) {
+		const sparkleColors = [0xff4fc3, 0x4fd8ff, 0xffe066, 0x7dff7d, 0xff8a65];
+		const sparkleCount = 14;
+
+		for (let index = 0; index < sparkleCount; index += 1) {
+			const angle = (Math.PI * 2 * index) / sparkleCount;
+			const radius = Phaser.Math.Between(10, 24);
+			const targetX = world.x + Math.cos(angle) * radius;
+			const targetY = world.y + Math.sin(angle) * (radius * 0.42) - Phaser.Math.Between(10, 20);
+			const sparkle = this.add.circle(
+				world.x + Phaser.Math.Between(-2, 2),
+				world.y + Phaser.Math.Between(-2, 2),
+				Phaser.Math.FloatBetween(1.8, 3.2),
+				sparkleColors[index % sparkleColors.length],
+				0.95
+			);
+			sparkle.setDepth(world.y + 9.5);
+
+			this.tweens.add({
+				targets: sparkle,
+				x: targetX,
+				y: targetY,
+				alpha: 0,
+				scale: 0.15,
+				duration: Phaser.Math.Between(480, 760),
+				ease: 'Cubic.easeOut',
+				onComplete: () => sparkle.destroy()
+			});
+		}
+
+		this.cameras.main.flash(180, 120, 220, 255, false);
 	}
 
 	private isNearLevelExit(): boolean {
@@ -821,8 +1042,16 @@ export class IsometricDungeon extends Phaser.Scene {
 		return distanceBetween(this.player.gridPos, exitCenter) <= 1.1;
 	}
 
+	private isPlayerNearNpc(): boolean {
+		if (!this.npc) {
+			return false;
+		}
+
+		return distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+	}
+
 	private publishHudState() {
-		const nearNpc = distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+		const nearNpc = this.isPlayerNearNpc();
 		const nearExit = this.isNearLevelExit();
 		const nearInteractable = this.getNearestInteractable() !== null;
 		const canPushFacingBlock = this.isFacingPushableBlock();
@@ -947,19 +1176,55 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
+		if (this.state === 'level-three-yellow-unlocked') {
+			this.emitHudState({
+				level: 3,
+				state: this.state,
+				status: 'Yellow restored. A deeper descent path is now open.',
+				hint: nearExit
+					? 'Press E to descend to level 4 and solve the block-button puzzle.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you.'
+						: nearInteractable
+							? 'Press E near the marker to inspect it.'
+							: 'Find the descent marker to continue.',
+				objective: 'Descend to level 4.',
+				canInteract: nearExit || nearInteractable || canPushFacingBlock
+			});
+			return;
+		}
+
+		if (this.state === 'level-four-button-puzzle') {
+			const buttonCount = this.getButtonMarkers().length;
+			const pressedCount = this.pressedButtonKeys.size;
+			this.emitHudState({
+				level: 4,
+				state: this.state,
+				status: 'Final puzzle: press all floor buttons using push blocks.',
+				hint: nearExit
+					? this.areAllButtonsPressed()
+						? 'All buttons are active. Press E at the gate to complete the dungeon.'
+						: 'Gate is locked. Activate all buttons first.'
+					: canPushFacingBlock
+						? 'Press E to push the block in front of you.'
+						: nearInteractable
+							? 'Press E near the marker to inspect it.'
+							: 'Position blocks on every button tile.',
+				objective: `Activate all floor buttons (${pressedCount}/${buttonCount}).`,
+				canInteract: nearExit || nearInteractable || canPushFacingBlock
+			});
+			return;
+		}
+
 		this.emitHudState({
-			level: 3,
+			level: this.currentLevel,
 			state: 'complete',
-			status: this.blueUnlocked && this.redUnlocked
-				? 'Final challenge complete: full RGB restored.'
-				: 'Final challenge complete: green unlocked. Recover blue + red for full RGB.',
-			hint: this.blueUnlocked && this.redUnlocked
-				? (nearInteractable
-					? 'All color channels recovered. Press E near a marker to inspect it.'
-					: 'All color channels recovered. Explore freely.')
-				: (nearInteractable
-					? 'Green restored. Press E near a marker to inspect it while you hunt missing channels.'
-					: 'Green restored. Return to unlock remaining channels if needed.'),
+			status: this.blueUnlocked && this.redUnlocked && this.yellowUnlocked
+				? 'Dungeon challenge complete: full RGB restored and the final gate opened.'
+				: 'Dungeon challenge complete.',
+			hint: nearInteractable
+				? 'Press E near a marker to inspect it.'
+				: 'Explore freely.',
 			objective: 'Completed.',
 			canInteract: nearInteractable || canPushFacingBlock
 		});
@@ -999,8 +1264,11 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.drawDungeon();
 		this.updateLevelMarker();
 		this.renderInteractableMarkers();
+		this.renderButtonMarkers();
 		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
-		syncNpcSprite(this.npc, isoToWorld);
+		if (this.npc) {
+			syncNpcSprite(this.npc, isoToWorld);
+		}
 	}
 }
