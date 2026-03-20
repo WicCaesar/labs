@@ -16,7 +16,7 @@ type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 const NPC_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
 const HEALTH_BAR_WIDTH = 36;
 const HEALTH_BAR_HEIGHT = 5;
-const HEALTH_BAR_OFFSET_Y = -TILE_HEIGHT * 1.2;
+const HEALTH_BAR_OFFSET_Y = -TILE_HEIGHT * 1.8;
 const MAX_HEALTH = 100;
 const ENEMY_MOVE_SPEED = 1.8;
 const ENEMY_CATCH_DISTANCE = 0.5;
@@ -86,6 +86,10 @@ export function spawnNpc(
 	sprite.setOrigin(0.5, 1);
 	sprite.setScale(PLAYER_SCALE);
 	sprite.setDepth(world.y + 9);
+
+	if (isEnemy) {
+		sprite.setTint(0xff3333);
+	}
 
 	const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
 	const healthBarBg = scene.add.rectangle(
@@ -270,8 +274,8 @@ export function syncNpcSprite(npc: NpcState, isoToWorld: IsoToWorld, showHealthB
 	npc.healthBarFill.setPosition(world.x, barWorldY);
 	npc.healthBarFill.setDepth(world.y + 11);
 
-	npc.healthBarBg.setVisible(showHealthBar && npc.health < npc.maxHealth);
-	npc.healthBarFill.setVisible(showHealthBar && npc.health < npc.maxHealth);
+	npc.healthBarBg.setVisible(showHealthBar);
+	npc.healthBarFill.setVisible(showHealthBar);
 
 	if (showHealthBar) {
 		const healthPercent = Math.max(0, npc.health / npc.maxHealth);
