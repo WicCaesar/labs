@@ -89,6 +89,10 @@ export const useStandaloneQuizAssistFlow = ({
 		setHintsRemaining((prev) => Math.max(0, prev - 1));
 	};
 
+	const dismissHint = () => {
+		setCurrentHint(null);
+	};
+
 	useEffect(() => {
 		// Question changes reset all per-question helper state.
 		setRemovedOptionIds([]);
@@ -136,6 +140,7 @@ export const useStandaloneQuizAssistFlow = ({
 		currentHint,
 		openHelp2,
 		revealHelp2Card,
-		useHint
+		useHint,
+		dismissHint
 	};
 };

@@ -307,6 +307,19 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		});
 	}, []);
 
+	const dismissDungeonQuizHint = useCallback(() => {
+		setDungeonQuiz((prev) => {
+			if (!prev.currentHint) {
+				return prev;
+			}
+
+			return {
+				...prev,
+				currentHint: null
+			};
+		});
+	}, []);
+
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setDungeonQuiz(createInitialDungeonQuizState());
@@ -502,6 +515,7 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		onDungeonQuizOptionSelect,
 		onDungeonQuizOptionKeyDown,
 		useDungeonQuizHint,
+		dismissDungeonQuizHint,
 		skipDungeonQuizQuestion,
 		openDungeonQuizHelp2,
 		revealDungeonQuizHelp2Card

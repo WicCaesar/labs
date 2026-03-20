@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styles from './DialogueBox.module.css';
 
+// Timing constants for dialogue interaction
+const TYPEWRITER_INTERVAL_MS = 30; // milliseconds between each character
+const HINT_DELAY_MS = 5000; // milliseconds before spacebar hint appears
+
 export interface DialogueBoxProps {
 	npcName: string;
 	dialogueLines: string[];
@@ -22,12 +26,12 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
 	const currentLine = dialogueLines[currentLineIndex];
 	const isLastLine = currentLineIndex === dialogueLines.length - 1;
 
-	// Typewriter effect
+	// Typewriter effect: progressively reveal text character by character
 	useEffect(() => {
 		if (displayedText.length < currentLine.length) {
 			const timer = setTimeout(() => {
 				setDisplayedText(currentLine.substring(0, displayedText.length + 1));
-			}, 30);
+			}, TYPEWRITER_INTERVAL_MS);
 			return () => clearTimeout(timer);
 		} else {
 			setIsFullyDisplayed(true);
@@ -42,12 +46,13 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
 	}, [currentLineIndex]);
 
 	// Show hint after 5 seconds of line being fully displayed
+	// This gives players time to read before hinting them to progress
 	useEffect(() => {
 		if (!isFullyDisplayed) return;
 
 		const hintTimer = setTimeout(() => {
 			setShowHint(true);
-		}, 5000);
+		}, HINT_DELAY_MS);
 
 		return () => clearTimeout(hintTimer);
 	}, [isFullyDisplayed]);
@@ -66,13 +71,15 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
 	}, [isFullyDisplayed, isLastLine, currentLineIndex]);
 
 	const handleAdvanceLine = () => {
+		// If text is still being typed, show full line immediately on spacebar press
+		// instead of advancing to the next line
 		if (!isFullyDisplayed) {
-			// Show full line immediately if still typing
 			setDisplayedText(currentLine);
 			setIsFullyDisplayed(true);
 			return;
 		}
 
+		// Once text is fully displayed, spacebar moves to next line or completes dialogue
 		if (isLastLine) {
 			onComplete?.();
 		} else {

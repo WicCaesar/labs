@@ -121,6 +121,13 @@ function resolveNpcSpawn(
 	};
 }
 
+// NPC behavior overrides: customize NPC behavior per level
+// If a level doesn't have an override, the NPC's default behavior (from map markers) is used
+// This system allows you to configure NPCs without editing the level map files
+// Examples:
+// - Level 1: Jarbas is stationary and faces south (idle pose)
+// - Level 3: NPC looks around every 7 seconds (creates natural "waiting" animation)
+// - Level 4: NPC faces west (toward puzzle area)
 const NPC_BEHAVIOR_OVERRIDES: Partial<Record<DungeonLevelId, DungeonNpcBehavior>> = {
 	[DUNGEON_LEVEL.ONE]: {
 		kind: 'friendly-stationary-fixed',

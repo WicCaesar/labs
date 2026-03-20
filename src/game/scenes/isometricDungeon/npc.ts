@@ -81,54 +81,61 @@ spawnPosition: Vec2,
 isoToWorld: IsoToWorld,
 behavior: NpcBehavior
 ): NpcState {
-const facing: DirectionKey = behavior.kind === 'friendly-stationary-fixed' ? behavior.facing : 'south';
-const world = isoToWorld(spawnPosition.x, spawnPosition.y);
-const sprite = scene.add.image(world.x, world.y + NPC_FEET_OFFSET_Y, DIRECTION_TO_FRAME[facing]);
+	// Determine initial facing direction based on behavior type
+	// Stationary NPCs use their configured facing; others default to south
+	const facing: DirectionKey = behavior.kind === 'friendly-stationary-fixed' ? behavior.facing : 'south';
+	const world = isoToWorld(spawnPosition.x, spawnPosition.y);
+	
+	// Create sprite and position it with a small upward offset
+	// This anchors their "feet" to the ground tile (depth = Y position for proper isometric layering)
+	const sprite = scene.add.image(world.x, world.y + NPC_FEET_OFFSET_Y, DIRECTION_TO_FRAME[facing]);
+	sprite.setOrigin(0.5, 1);
+	sprite.setScale(PLAYER_SCALE);
+	sprite.setDepth(world.y + 9);
 
-sprite.setOrigin(0.5, 1);
-sprite.setScale(PLAYER_SCALE);
-sprite.setDepth(world.y + 9);
+	// Create health bars for the NPC (visible only if NPC takes damage)
+	const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
+	const healthBarBg = scene.add.rectangle(
+		world.x,
+		barWorldY,
+		HEALTH_BAR_WIDTH,
+		HEALTH_BAR_HEIGHT,
+		0xcc0000
+	);
+	healthBarBg.setOrigin(0.5, 0.5);
+	healthBarBg.setDepth(world.y + 10);
+	healthBarBg.setVisible(false);
 
-const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
-const healthBarBg = scene.add.rectangle(
-world.x,
-barWorldY,
-HEALTH_BAR_WIDTH,
-HEALTH_BAR_HEIGHT,
-0xcc0000
-);
-healthBarBg.setOrigin(0.5, 0.5);
-healthBarBg.setDepth(world.y + 10);
-healthBarBg.setVisible(false);
+	const healthBarFill = scene.add.rectangle(
+		world.x - HEALTH_BAR_WIDTH / 2 + HEALTH_BAR_WIDTH / 2,
+		barWorldY,
+		HEALTH_BAR_WIDTH,
+		HEALTH_BAR_HEIGHT,
+		0x2d5a27
+	);
+	healthBarFill.setOrigin(0.5, 0.5);
+	healthBarFill.setDepth(world.y + 11);
+	healthBarFill.setVisible(false);
 
-const healthBarFill = scene.add.rectangle(
-world.x - HEALTH_BAR_WIDTH / 2 + HEALTH_BAR_WIDTH / 2,
-barWorldY,
-HEALTH_BAR_WIDTH,
-HEALTH_BAR_HEIGHT,
-0x2d5a27
-);
-healthBarFill.setOrigin(0.5, 0.5);
-healthBarFill.setDepth(world.y + 11);
-healthBarFill.setVisible(false);
-
-return {
-gridPos: { ...spawnPosition },
-facing,
-direction: randomDirection(),
-sprite,
-decisionTimer: Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS),
-lookAroundTimer: 0,
-behavior,
-health: MAX_HEALTH,
-maxHealth: MAX_HEALTH,
-healthBarBg,
-healthBarFill,
-graph: {},
-path: [],
-pathIndex: 0,
-pathRecalcTimer: 0
-};
+	// Initialize pathfinding graph (used for enemy chase behavior)
+	// This will be populated when enemy chase is needed
+	return {
+		gridPos: { ...spawnPosition },
+		facing,
+		direction: randomDirection(),
+		sprite,
+		decisionTimer: Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS),
+		lookAroundTimer: 0,
+		behavior,
+		health: MAX_HEALTH,
+		maxHealth: MAX_HEALTH,
+		healthBarBg,
+		healthBarFill,
+		graph: {},
+		path: [],
+		pathIndex: 0,
+		pathRecalcTimer: 0
+	};
 }
 
 function setNpcFacing(npc: NpcState, facing: DirectionKey) {
@@ -147,28 +154,36 @@ map: number[][],
 worldWidth: number,
 worldHeight: number
 ) {
-if (npc.behavior.kind === 'friendly-stationary-fixed') {
-if (npc.facing !== npc.behavior.facing) {
-setNpcFacing(npc, npc.behavior.facing);
-}
-return;
-}
+// Stationary NPCs don't move - just ensure they face the correct direction
+	if (npc.behavior.kind === 'friendly-stationary-fixed') {
+		if (npc.facing !== npc.behavior.facing) {
+			setNpcFacing(npc, npc.behavior.facing);
+		}
+		return;
+	}
 
-if (npc.behavior.kind === 'friendly-stationary-look-around') {
-npc.lookAroundTimer -= delta;
-if (npc.lookAroundTimer <= 0) {
-const options = LOOK_AROUND_DIRECTIONS.filter((direction) => direction !== npc.facing);
-const nextFacing = options[Phaser.Math.Between(0, options.length - 1)] ?? npc.facing;
-setNpcFacing(npc, nextFacing);
-npc.lookAroundTimer = Phaser.Math.Between(npc.behavior.lookMinMs, npc.behavior.lookMaxMs);
-}
-return;
-}
+	// Look-around NPCs stay in place but periodically change their facing direction
+	// This creates a natural "idle" animation where they casually look around
+	if (npc.behavior.kind === 'friendly-stationary-look-around') {
+		npc.lookAroundTimer -= delta;
+		if (npc.lookAroundTimer <= 0) {
+			// Pick a new direction that's different from current facing
+			const options = LOOK_AROUND_DIRECTIONS.filter((direction) => direction !== npc.facing);
+			const nextFacing = options[Phaser.Math.Between(0, options.length - 1)] ?? npc.facing;
+			setNpcFacing(npc, nextFacing);
+			// Reset timer for next look-around
+			npc.lookAroundTimer = Phaser.Math.Between(npc.behavior.lookMinMs, npc.behavior.lookMaxMs);
+		}
+		return;
+	}
 
-if (npc.behavior.kind === 'enemy-chase') {
-return;
-}
+	// Enemy chase behavior is handled elsewhere (in updateEnemyNpcMovement)
+	if (npc.behavior.kind === 'enemy-chase') {
+		return;
+	}
 
+	// Wandering NPCs randomly change direction at regular intervals
+	// This creates a natural-looking patrolling behavior
 npc.decisionTimer -= delta;
 if (npc.decisionTimer <= 0) {
 npc.direction = randomDirection();

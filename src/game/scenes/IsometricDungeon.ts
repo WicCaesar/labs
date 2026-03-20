@@ -109,6 +109,8 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	preload() {
+		// Load all 8 directional sprites for the penguin player
+		// This allows smooth rotation when player changes direction
 		this.load.setPath('assets/sprites/penguin/rotations');
 		this.load.image('penguin-north', 'north.png');
 		this.load.image('penguin-north-east', 'north-east.png');
@@ -121,17 +123,25 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	create() {
+		// Initialize the dungeon rendering system and load all level configurations
 		this.dungeonRenderer = new DungeonRenderer(this);
 		this.levels = createLevelConfig();
 		this.loadLevel(DUNGEON_LEVEL.ONE, true);
+		
+		// Position the camera viewport with offset to center the dungeon nicely
+		// 0.5 = horizontal center, 0.18 = positioned in upper portion to show game state
 		this.worldOffsetX = this.scale.width * 0.5;
 		this.worldOffsetY = this.scale.height * 0.18;
 		this.updateCameraBoundsForCurrentMap();
 
+		// Draw terrain, spawn player/NPC, and set up input handling
 		this.drawDungeon();
 		this.spawnActorsForLevel();
 		this.createInput();
 		this.createLevelMarker();
+		
+		// Subscribe to React UI events: quiz results and dialogue completion
+		// These subscriptions are stored so we can clean them up on scene shutdown
 		this.unsubscribeHandlers.push(
 			EventBus.on('ui:dungeon-quiz-finished', ({ quizId, passed, correctAnswers }) => {
 				this.handleDungeonQuizFinished(quizId, passed, correctAnswers);
@@ -145,10 +155,14 @@ export class IsometricDungeon extends Phaser.Scene {
 				}
 			})
 		);
+		
 		this.emitWorldColorFilterState();
 		this.publishHudState();
 
+		// Handle window resize to reposition camera and UI overlays
 		this.scale.on('resize', this.handleResize, this);
+		
+		// Cleanup when scene shuts down: unsubscribe from events, reset filters, clear state
 		this.events.once('shutdown', () => {
 			this.stopExitSparkleLoop();
 			this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
@@ -167,32 +181,45 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	update(_: number, delta: number) {
+		// If a quiz is active, pause gameplay and just update the HUD
+		// The quiz is controlled by React UI, not by this scene
 		if (this.isDungeonQuizActive) {
 			this.publishHudState();
 			return;
 		}
 
+		// Convert isometric coordinates to world screen coordinates for rendering
 		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
+		
+		// Calculate player movement based on keyboard input (WASD or arrow keys)
 		const move = this.getMovementInput();
 		this.rebuildCollisionMap();
 		updatePlayerMovement(this.player, move, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 		syncPlayerSprite(this.player, isoToWorld);
+		
+		// Keep camera centered on player
 		const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
+		// Update NPC behavior based on level and game state
+		// Level 2 enemies chase the player; other NPCs follow their configured behavior
 		const levelNpcRole = this.levels[this.currentLevel].npcRole;
 		if (this.npc) {
 			const isEnemyLevel = levelNpcRole === 'enemy';
 			if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
+				// Enemy chases player - calculate path and move toward player
 				updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 				this.handleEnemyTouchDamage();
 			} else {
+				// Friendly NPCs follow their behavior (wander, look-around, etc.)
 				updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 			}
 
+			// Draw NPC sprite with special red tint if it's an enemy in level 2
 			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
 		}
 
+		// Handle player pressing Space key to interact with NPCs, blocks, or buttons
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
 		}
@@ -286,7 +313,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			right: Phaser.Input.Keyboard.Key;
 		};
 
-		this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+		this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 	}
 
 	private getMovementInput(): Vec2 {
@@ -413,7 +440,9 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.blueUnlocked = true;
-		this.state = 'level-one-blue-unlocked';
+		if (this.currentLevel === DUNGEON_LEVEL.ONE) {
+			this.state = 'level-one-blue-unlocked';
+		}
 		this.emitWorldColorFilterState();
 		this.cameras.main.flash(300, 90, 130, 255);
 	}
@@ -607,10 +636,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.state = 'complete';
-		
-		// Unlock blue channel on level 4 completion
-		this.unlockBlueChannel();
-		
+
 		this.cameras.main.flash(420, 255, 220, 120);
 		EventBus.emit('dungeon:interactable-activated', {
 			level: this.currentLevel,
@@ -920,6 +946,11 @@ export class IsometricDungeon extends Phaser.Scene {
 		nextPressedKeys.forEach((key) => this.pressedButtonKeys.add(key));
 		this.renderButtonMarkers();
 
+		if (this.currentLevel === DUNGEON_LEVEL.FOUR && this.areAllButtonsPressed() && !this.blueUnlocked) {
+			// Level-four puzzle completion unlocks blue immediately when every button is active.
+			this.unlockBlueChannel();
+		}
+
 		if (this.currentLevel === DUNGEON_LEVEL.FOUR) {
 			if (this.state !== 'complete') {
 				this.state = 'level-four-button-puzzle';
@@ -1205,12 +1236,12 @@ export class IsometricDungeon extends Phaser.Scene {
 				level: 2,
 				state: this.state,
 				status: 'Vermelho restaurado. As próximas escadas estão ativas.',
-				hint: nearExit
-					? 'Pressione E para descer para o nível 3 e enfrentar o quiz final.'
+					hint: nearExit
+						? 'Pressione ESPAÇO para descer para o nível 3 e enfrentar o quiz final.'
 					: canPushFacingBlock
-						? 'Pressione E para empurrar o bloco à sua frente.'
+						? 'Pressione ESPAÇO para empurrar o bloco à sua frente.'
 					: nearInteractable
-						? 'Pressione E perto da marcação para inspecioná-la.'
+						? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
 						: 'Encontre as escadas marcadas para seguir para o nível 3.',
 				objective: 'Chegue ao nível 3 e desbloqueie amarelo (canal verde).',
 				canInteract: nearExit || nearInteractable || canPushFacingBlock
@@ -1236,11 +1267,11 @@ export class IsometricDungeon extends Phaser.Scene {
 				state: this.state,
 				status: 'Desafio final: fale com o pinguim para desbloquear amarelo.',
 				hint: nearNpc
-					? 'Pressione E para iniciar um quiz de 3 perguntas do segmento 2. Tire 3/3.'
+					? 'Pressione ESPAÇO para iniciar um quiz de 3 perguntas do segmento 2. Tire 3/3.'
 					: canPushFacingBlock
-						? 'Pressione E para empurrar blocos de puzzle e abrir a rota.'
+						? 'Pressione ESPAÇO para empurrar blocos de puzzle e abrir a rota.'
 					: nearInteractable
-						? 'Pressione E perto da marcação para inspecioná-la.'
+						? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
 						: this.lastYellowQuizCorrectAnswers > 0
 							? `Última pontuação final: ${this.lastYellowQuizCorrectAnswers}/3. Fale com o pinguim para tentar novamente.`
 							: 'Encontre o pinguim e passe no quiz final.',
@@ -1256,11 +1287,11 @@ export class IsometricDungeon extends Phaser.Scene {
 				state: this.state,
 				status: 'Yellow restored. A deeper descent path is now open.',
 				hint: nearExit
-					? 'Press E to descend to level 4 and solve the block-button puzzle.'
+					? 'Press SPACE to descend to level 4 and solve the block-button puzzle.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you.'
+						? 'Press SPACE to push the block in front of you.'
 						: nearInteractable
-							? 'Press E near the marker to inspect it.'
+							? 'Press SPACE near the marker to inspect it.'
 							: 'Find the descent marker to continue.',
 				objective: 'Descend to level 4.',
 				canInteract: nearExit || nearInteractable || canPushFacingBlock
@@ -1277,12 +1308,12 @@ export class IsometricDungeon extends Phaser.Scene {
 				status: 'Final puzzle: press all floor buttons using push blocks.',
 				hint: nearExit
 					? this.areAllButtonsPressed()
-						? 'All buttons are active. Press E at the gate to complete the dungeon.'
+						? 'All buttons are active. Press SPACE at the gate to complete the dungeon.'
 						: 'Gate is locked. Activate all buttons first.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you.'
+						? 'Press SPACE to push the block in front of you.'
 						: nearInteractable
-							? 'Press E near the marker to inspect it.'
+							? 'Press SPACE near the marker to inspect it.'
 							: 'Position blocks on every button tile.',
 				objective: `Activate all floor buttons (${pressedCount}/${buttonCount}).`,
 				canInteract: nearExit || nearInteractable || canPushFacingBlock
@@ -1298,10 +1329,10 @@ export class IsometricDungeon extends Phaser.Scene {
 				: 'Desafio final completo: verde desbloqueado. Recupere azul + vermelho para RGB completo.',
 			hint: this.blueUnlocked && this.redUnlocked
 				? (nearInteractable
-					? 'Todos os canais de cor recuperados. Pressione E perto de uma marcação para inspecioná-la.'
+					? 'Todos os canais de cor recuperados. Pressione ESPAÇO perto de uma marcação para inspecioná-la.'
 					: 'Todos os canais de cor recuperados. Explore livremente.')
 				: (nearInteractable
-					? 'Verde restaurado. Pressione E perto de uma marcação para inspecioná-la enquanto busca os canais faltantes.'
+					? 'Verde restaurado. Pressione ESPAÇO perto de uma marcação para inspecioná-la enquanto busca os canais faltantes.'
 					: 'Verde restaurado. Volte para desbloquear os canais restantes se necessário.'),
 			objective: 'Completo.',
 			canInteract: nearInteractable || canPushFacingBlock

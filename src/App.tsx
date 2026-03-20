@@ -96,7 +96,7 @@ export const App = () => {
 	const [dungeonHud, setDungeonHud] = useState({
 		level: 1 as 1 | 2 | 3,
 		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
-		hint: 'Controles: WASD/Setas + E para interagir',
+		hint: 'Controles: WASD/Setas + ESPAÇO para interagir',
 		objective: 'Desbloquear azul.',
 		canInteract: false,
 		state: 'level-one-hunt-blue' as
@@ -135,6 +135,7 @@ export const App = () => {
 		dungeonSkipDisabled,
 		dungeonHelp2Disabled,
 		useDungeonQuizHint,
+		dismissDungeonQuizHint,
 		onDungeonQuizOptionSelect,
 		onDungeonQuizOptionKeyDown,
 		skipDungeonQuizQuestion,
@@ -182,7 +183,8 @@ export const App = () => {
 		currentHint,
 		openHelp2,
 		revealHelp2Card,
-		useHint
+		useHint,
+		dismissHint
 	} = useStandaloneQuizAssistFlow({
 		questionId: question.id,
 		normalizedOptions,
@@ -285,6 +287,28 @@ export const App = () => {
 			segment: question.segment
 		});
 	}, [question.id, question.segment]);
+
+	useEffect(() => {
+		const hasVisibleHint = Boolean(currentHint || dungeonQuiz.currentHint);
+		if (!hasVisibleHint) {
+			return;
+		}
+
+		const handleSpaceDismissHint = (event: globalThis.KeyboardEvent) => {
+			if (event.code !== 'Space') {
+				return;
+			}
+
+			event.preventDefault();
+			dismissHint();
+			dismissDungeonQuizHint();
+		};
+
+		window.addEventListener('keydown', handleSpaceDismissHint);
+		return () => {
+			window.removeEventListener('keydown', handleSpaceDismissHint);
+		};
+	}, [currentHint, dungeonQuiz.currentHint, dismissHint, dismissDungeonQuizHint]);
 
 	const onOptionSelect = (optionId: string) => {
 		setSelectedOptionId(optionId);
@@ -431,7 +455,7 @@ export const App = () => {
 						<p className="dungeon-hud-status">{dungeonHud.status}</p>
 						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
 						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
-						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
+						<p className="dungeon-hud-controls">WASD/Arrows to move. SPACE to interact.</p>
 						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interação disponível</span> : null}
 					</section>
 					{dungeonInteractableNotice ? (
@@ -576,7 +600,17 @@ export const App = () => {
 								</nav>
 
 								{dungeonQuiz.currentHint ? (
-									<p className="quiz-hint" aria-live="polite">Dica: {dungeonQuiz.currentHint}</p>
+									<div
+										className="quiz-hint-overlay"
+										role="dialog"
+										aria-modal="true"
+										aria-label="Dica do quiz"
+										onClick={dismissDungeonQuizHint}
+									>
+										<div className="quiz-hint-panel">
+											<p className="quiz-hint-message" aria-live="polite">Dica: {dungeonQuiz.currentHint}</p>
+										</div>
+									</div>
 								) : null}
 
 								{dungeonQuiz.isHelp2PanelOpen ? (
@@ -747,7 +781,17 @@ export const App = () => {
 			</nav>
 
 				{currentHint ? (
-					<p className="quiz-hint" aria-live="polite">Dica: {currentHint}</p>
+					<div
+						className="quiz-hint-overlay"
+						role="dialog"
+						aria-modal="true"
+						aria-label="Dica"
+						onClick={dismissHint}
+					>
+						<div className="quiz-hint-panel">
+							<p className="quiz-hint-message" aria-live="polite">Dica: {currentHint}</p>
+						</div>
+					</div>
 				) : null}
 
 			{isHelp2PanelOpen ? (
