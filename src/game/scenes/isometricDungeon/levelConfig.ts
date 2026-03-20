@@ -66,7 +66,7 @@ export type DungeonLevelConfig = {
 	mapWidth: number;
 	mapHeight: number;
 	playerSpawn: Vec2;
-	npcSpawn: Vec2 | null;
+	npcSpawns: Vec2[];
 	npcRole: DungeonNpcRole | null;
 	npcBehavior: DungeonNpcBehavior | null;
 	exitTile: Vec2 | null;
@@ -80,11 +80,10 @@ export type DungeonInteractableMarker = Extract<DungeonMarker, { type: 'interact
 function resolveNpcSpawn(
 	friendlyNpcSpawns: Vec2[],
 	enemyNpcSpawns: Vec2[]
-): { npcSpawn: Vec2 | null; npcRole: DungeonNpcRole | null; npcBehavior: DungeonNpcBehavior | null } {
-	// Enemy spawn has priority when both are present so level behavior remains explicit.
+): { npcSpawns: Vec2[]; npcRole: DungeonNpcRole | null; npcBehavior: DungeonNpcBehavior | null } {
 	if (enemyNpcSpawns.length > 0) {
 		return {
-			npcSpawn: enemyNpcSpawns[0],
+			npcSpawns: enemyNpcSpawns,
 			npcRole: 'enemy',
 			npcBehavior: {
 				kind: 'enemy-chase',
@@ -95,7 +94,7 @@ function resolveNpcSpawn(
 
 	if (friendlyNpcSpawns.length > 0) {
 		return {
-			npcSpawn: friendlyNpcSpawns[0],
+			npcSpawns: [friendlyNpcSpawns[0]],
 			npcRole: 'friendly',
 			npcBehavior: {
 				kind: 'friendly-wander',
@@ -107,7 +106,7 @@ function resolveNpcSpawn(
 	}
 
 	return {
-		npcSpawn: null,
+		npcSpawns: [],
 		npcRole: null,
 		npcBehavior: null
 	};
@@ -183,7 +182,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelOneMap.width,
 			mapHeight: levelOneMap.height,
 			playerSpawn: levelOnePlayerSpawn,
-			npcSpawn: levelOneNpc.npcSpawn,
+			npcSpawns: levelOneNpc.npcSpawns,
 			npcRole: levelOneNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.ONE, levelOneNpc.npcRole, levelOneNpc.npcBehavior),
 			exitTile: levelOneMap.exitTile,
@@ -197,7 +196,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelTwoMap.width,
 			mapHeight: levelTwoMap.height,
 			playerSpawn: levelTwoPlayerSpawn,
-			npcSpawn: levelTwoNpc.npcSpawn,
+			npcSpawns: levelTwoNpc.npcSpawns,
 			npcRole: levelTwoNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.TWO, levelTwoNpc.npcRole, levelTwoNpc.npcBehavior),
 			exitTile: levelTwoMap.exitTile,
@@ -211,7 +210,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelThreeMap.width,
 			mapHeight: levelThreeMap.height,
 			playerSpawn: levelThreePlayerSpawn,
-			npcSpawn: levelThreeNpc.npcSpawn,
+			npcSpawns: levelThreeNpc.npcSpawns,
 			npcRole: levelThreeNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.THREE, levelThreeNpc.npcRole, levelThreeNpc.npcBehavior),
 			exitTile: levelThreeMap.exitTile,
@@ -225,7 +224,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelFourMap.width,
 			mapHeight: levelFourMap.height,
 			playerSpawn: levelFourPlayerSpawn,
-			npcSpawn: levelFourNpc.npcSpawn,
+			npcSpawns: levelFourNpc.npcSpawns,
 			npcRole: levelFourNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.FOUR, levelFourNpc.npcRole, levelFourNpc.npcBehavior),
 			exitTile: levelFourMap.exitTile,

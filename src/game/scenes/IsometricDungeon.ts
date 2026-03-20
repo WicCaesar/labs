@@ -23,8 +23,9 @@ import {
 import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
-import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
+import { damageEnemy, spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
+import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
 
 export class IsometricDungeon extends Phaser.Scene {
 	private readonly map: number[][] = [];
@@ -41,7 +42,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private player!: PlayerState;
 
-	private npc: NpcState | null = null;
+	private npcs: NpcState[] = [];
 
 	private exitMarkerOuter?: Phaser.GameObjects.Ellipse;
 
@@ -60,8 +61,6 @@ export class IsometricDungeon extends Phaser.Scene {
 	private readonly exitUnlockedByLevel = new Map<DungeonLevelId, boolean>();
 
 	private exitSparkleTimer: Phaser.Time.TimerEvent | null = null;
-
-	private level2RespawnPoint: Vec2 = { x: 2, y: 2 };
 
 	private mapWidth = 0;
 
@@ -99,6 +98,12 @@ export class IsometricDungeon extends Phaser.Scene {
 	private readonly yellowQuizQuestionCount = 3;
 
 	private readonly unsubscribeHandlers: Array<() => void> = [];
+
+	private retryButtonContainer?: Phaser.GameObjects.Container;
+
+	private snowballs: SnowballProjectile[] = [];
+
+	private weaponCooldown = 0;
 
 	private worldOffsetX = 0;
 
@@ -176,19 +181,23 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
 		const levelNpcRole = this.levels[this.currentLevel].npcRole;
-		if (this.npc) {
-			const isEnemyLevel = levelNpcRole === 'enemy';
-			if (this.state === 'level-two-hunt-red' && !this.redUnlocked && isEnemyLevel) {
-				updateEnemyNpcMovement(this.npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
+		const isEnemyLevel = levelNpcRole === 'enemy';
+		const allEnemiesDefeated = this.npcs.length === 0 || this.npcs.every(npc => npc.health <= 0);
+
+		for (const npc of this.npcs) {
+			if (this.state === 'level-two-hunt-red' && !allEnemiesDefeated && isEnemyLevel) {
+				updateEnemyNpcMovement(npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 				this.handleEnemyTouchDamage();
 			} else {
-				updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
+				updateNpcMovement(npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 			}
 		}
 
-		if (this.npc) {
-			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		for (const npc of this.npcs) {
+			syncNpcSprite(npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !allEnemiesDefeated);
 		}
+
+		this.updateWeaponSystem(delta, isoToWorld);
 
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
@@ -210,7 +219,6 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.state = this.blueUnlocked ? 'level-one-blue-unlocked' : 'level-one-hunt-blue';
 		} else if (levelId === DUNGEON_LEVEL.TWO) {
 			this.state = this.redUnlocked ? 'level-two-red-unlocked' : 'level-two-hunt-red';
-			this.level2RespawnPoint = { ...level.playerSpawn };
 		} else if (levelId === DUNGEON_LEVEL.THREE) {
 			this.state = this.yellowUnlocked ? 'level-three-yellow-unlocked' : 'level-three-hunt-yellow';
 		} else {
@@ -244,10 +252,12 @@ export class IsometricDungeon extends Phaser.Scene {
 		if (this.player && this.player.sprite) {
 			this.player.sprite.destroy();
 		}
-		if (this.npc && this.npc.sprite) {
-			this.npc.sprite.destroy();
+		for (const npc of this.npcs) {
+			if (npc.sprite) npc.sprite.destroy();
+			if (npc.healthBarBg) npc.healthBarBg.destroy();
+			if (npc.healthBarFill) npc.healthBarFill.destroy();
 		}
-		this.npc = null;
+		this.npcs = [];
 		this.pushBlocks.forEach((block) => block.sprite.destroy());
 		this.pushBlocks.length = 0;
 
@@ -256,13 +266,15 @@ export class IsometricDungeon extends Phaser.Scene {
 		const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(world.x, world.y);
 
-		let isEnemy = false;
-		if (level.npcSpawn && level.npcBehavior) {
-			const npcSpawn = this.ensureWalkable(level.npcSpawn);
-			isEnemy = level.npcRole === 'enemy';
-			this.npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy, level.npcBehavior);
-			const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-			this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		const isEnemy = level.npcRole === 'enemy';
+		if (level.npcSpawns.length > 0 && level.npcBehavior) {
+			for (const spawnPos of level.npcSpawns) {
+				const npcSpawn = this.ensureWalkable(spawnPos);
+				const npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy, level.npcBehavior);
+				const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
+				npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+				this.npcs.push(npc);
+			}
 		}
 
 		for (const [index, spawn] of level.pushBlocks.entries()) {
@@ -421,7 +433,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private startBlueUnlockQuiz() {
-		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || !this.npc) {
+		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.npcs.length === 0) {
 			return;
 		}
 
@@ -436,7 +448,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private startYellowUnlockQuiz() {
-		if (this.yellowUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.THREE || !this.npc) {
+		if (this.yellowUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.THREE || this.npcs.length === 0) {
 			return;
 		}
 
@@ -504,13 +516,17 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private killEnemyUnlockRed() {
-		if (this.redUnlocked || !this.npc) {
+		if (this.redUnlocked || this.npcs.length === 0) {
 			return;
 		}
 
 		this.redUnlocked = true;
 		this.state = 'level-two-red-unlocked';
-		this.npc.sprite.setVisible(false);
+		for (const npc of this.npcs) {
+			npc.sprite.setVisible(false);
+			npc.healthBarBg.setVisible(false);
+			npc.healthBarFill.setVisible(false);
+		}
 		this.emitWorldColorFilterState();
 		this.cameras.main.flash(380, 255, 90, 90);
 		this.updateLevelMarker();
@@ -570,6 +586,10 @@ export class IsometricDungeon extends Phaser.Scene {
 			return 'blue-unlocked';
 		}
 
+		if (this.currentLevel === DUNGEON_LEVEL.TWO) {
+			return 'red-unlocked';
+		}
+
 		return 'grayscale';
 	}
 
@@ -607,20 +627,138 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private handleEnemyTouchDamage() {
-		if (this.redUnlocked || !this.npc) {
+		if (this.redUnlocked || this.npcs.length === 0) {
 			return;
 		}
 
-		const nearEnemy = distanceBetween(this.player.gridPos, this.npc.gridPos) <= 0.75;
 		const now = this.time.now;
-		if (!nearEnemy || now - this.lastPlayerHitAt < 1250) {
+		if (now - this.lastPlayerHitAt < 1250) {
 			return;
 		}
 
-		this.lastPlayerHitAt = now;
-		this.player.gridPos = { ...this.level2RespawnPoint };
-		syncPlayerSprite(this.player, (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY));
-		this.cameras.main.shake(140, 0.008);
+		for (const npc of this.npcs) {
+			const nearEnemy = distanceBetween(this.player.gridPos, npc.gridPos) <= 0.75;
+			if (nearEnemy) {
+				this.lastPlayerHitAt = now;
+				this.showRetryButton();
+				return;
+			}
+		}
+	}
+
+	private showRetryButton() {
+		this.scene.pause();
+
+		const container = this.add.container(this.scale.width / 2, this.scale.height / 2);
+		container.setDepth(9999);
+
+		const overlay = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.7);
+		overlay.setOrigin(0.5);
+
+		const buttonBg = this.add.rectangle(0, 0, 200, 60, 0xcc0000);
+		buttonBg.setOrigin(0.5);
+		buttonBg.setInteractive({ useHandCursor: true });
+
+		const buttonText = this.add.text(0, 0, 'Tentar Novamente', {
+			fontSize: '24px',
+			color: '#ffffff',
+			fontFamily: 'Arial'
+		});
+		buttonText.setOrigin(0.5);
+
+		buttonBg.on('pointerover', () => buttonBg.setFillStyle(0xaa0000));
+		buttonBg.on('pointerout', () => buttonBg.setFillStyle(0xcc0000));
+		buttonBg.on('pointerdown', () => this.restartGame());
+
+		container.add([overlay, buttonBg, buttonText]);
+
+		this.retryButtonContainer = container;
+	}
+
+	private restartGame() {
+		if (this.retryButtonContainer) {
+			this.retryButtonContainer.destroy();
+			this.retryButtonContainer = undefined;
+		}
+
+		this.scene.resume();
+		this.scene.restart();
+	}
+
+	private updateWeaponSystem(delta: number, isoToWorld: (x: number, y: number) => { x: number; y: number }) {
+		const isHostileLevel = this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked;
+		const aliveEnemies = this.npcs.filter(npc => npc.health > 0);
+
+		if (isHostileLevel && aliveEnemies.length > 0) {
+			const nearestEnemy = this.findNearestEnemy(aliveEnemies);
+
+			if (nearestEnemy && this.isEnemyInRange(this.player.gridPos, nearestEnemy)) {
+				this.weaponCooldown -= delta;
+
+				if (this.weaponCooldown <= 0) {
+					const playerWorld = isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
+					const snowball = fireSnowball(this, playerWorld, nearestEnemy.gridPos, isoToWorld);
+					if (snowball) {
+						snowball.targetNpc = nearestEnemy;
+						this.snowballs.push(snowball);
+						this.weaponCooldown = 500;
+					}
+				}
+			}
+		}
+
+		for (let i = this.snowballs.length - 1; i >= 0; i--) {
+			const snowball = this.snowballs[i];
+			updateSnowballProjectile(snowball, delta);
+
+			if (snowball.active && snowball.targetNpc) {
+				const enemyWorld = isoToWorld(snowball.targetNpc.gridPos.x, snowball.targetNpc.gridPos.y);
+				const dx = snowball.x - enemyWorld.x;
+				const dy = snowball.y - enemyWorld.y;
+				const dist = Math.sqrt(dx * dx + dy * dy);
+
+				if (dist < 20) {
+					damageEnemy(snowball.targetNpc, snowball.damage);
+					snowball.active = false;
+					snowball.graphics.destroy();
+
+					if (snowball.targetNpc.health <= 0) {
+						snowball.targetNpc.sprite.setVisible(false);
+						snowball.targetNpc.healthBarBg.setVisible(false);
+						snowball.targetNpc.healthBarFill.setVisible(false);
+
+						const allEnemiesDefeated = this.npcs.every(npc => npc.health <= 0);
+						if (allEnemiesDefeated) {
+							this.killEnemyUnlockRed();
+						}
+					}
+				}
+			}
+
+			if (!snowball.active) {
+				this.snowballs.splice(i, 1);
+			}
+		}
+	}
+
+	private findNearestEnemy(enemies: NpcState[]): NpcState | null {
+		let nearest: NpcState | null = null;
+		let minDist = Infinity;
+
+		for (const enemy of enemies) {
+			const dist = distanceBetween(this.player.gridPos, enemy.gridPos);
+			if (dist < minDist) {
+				minDist = dist;
+				nearest = enemy;
+			}
+		}
+
+		return nearest;
+	}
+
+	private isEnemyInRange(playerPos: Vec2, enemy: NpcState): boolean {
+		const dist = distanceBetween(playerPos, enemy.gridPos);
+		return dist <= 3;
 	}
 
 	private rebuildCollisionMap() {
@@ -669,13 +807,15 @@ export class IsometricDungeon extends Phaser.Scene {
 			}
 		}
 
-		if (this.npc && this.npc.sprite.visible) {
-			const npcTile = {
-				x: Math.round(this.npc.gridPos.x),
-				y: Math.round(this.npc.gridPos.y)
-			};
-			if (npcTile.x === tileX && npcTile.y === tileY) {
-				return true;
+		for (const npc of this.npcs) {
+			if (npc.sprite.visible) {
+				const npcTile = {
+					x: Math.round(npc.gridPos.x),
+					y: Math.round(npc.gridPos.y)
+				};
+				if (npcTile.x === tileX && npcTile.y === tileY) {
+					return true;
+				}
 			}
 		}
 
@@ -1101,11 +1241,16 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private isPlayerNearNpc(): boolean {
-		if (!this.npc) {
+		if (this.npcs.length === 0) {
 			return false;
 		}
 
-		return distanceBetween(this.player.gridPos, this.npc.gridPos) <= INTERACTION_DISTANCE;
+		for (const npc of this.npcs) {
+			if (distanceBetween(this.player.gridPos, npc.gridPos) <= INTERACTION_DISTANCE) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private publishHudState() {
@@ -1329,8 +1474,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.renderButtonMarkers();
 		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
-		if (this.npc) {
-			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		for (const npc of this.npcs) {
+			syncNpcSprite(npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
 		}
 	}
 }
