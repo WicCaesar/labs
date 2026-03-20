@@ -8,6 +8,7 @@ import { SCENE_KEYS } from './shared/constants/sceneKeys';
 import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
 import { HELP2_CARD_META } from './ui/hooks/quizAssist';
 import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
+import DialogueBox from './ui/components/DialogueBox';
 
 const dollars = new Intl.NumberFormat('en-US', {
 	style: 'currency',
@@ -109,15 +110,31 @@ export const App = () => {
 			| 'complete'
 	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
+	const [dialogueState, setDialogueState] = useState<{
+		isActive: boolean;
+		npcName: string;
+		dialogueLines: string[];
+		portraitAsset?: string;
+		onCompleteQuizId?: 'blue' | 'yellow' | null;
+	}>({
+		isActive: false,
+		npcName: '',
+		dialogueLines: [],
+		portraitAsset: undefined,
+		onCompleteQuizId: null
+	});
 	const {
 		dungeonQuiz,
 		dungeonQuizHeadingRef,
 		dungeonQuizCurrentQuestion,
 		dungeonQuizProgressLabel,
 		dungeonQuizVisibleOptions,
+		dungeonHintLabel,
 		dungeonSkipLabel,
+		dungeonHintDisabled,
 		dungeonSkipDisabled,
 		dungeonHelp2Disabled,
+		useDungeonQuizHint,
 		onDungeonQuizOptionSelect,
 		onDungeonQuizOptionKeyDown,
 		skipDungeonQuizQuestion,
@@ -160,12 +177,17 @@ export const App = () => {
 		revealedHelp2CardId,
 		isResolvingHelp2,
 		help2Disabled,
+		hintDisabled,
+		hintLabel,
+		currentHint,
 		openHelp2,
-		revealHelp2Card
+		revealHelp2Card,
+		useHint
 	} = useStandaloneQuizAssistFlow({
 		questionId: question.id,
 		normalizedOptions,
 		correctOptionId,
+		hints: question.hints,
 		isAnswerLocked: selectedOptionId !== null,
 		isGameWon: progress.isGameWon
 	});
@@ -214,6 +236,21 @@ export const App = () => {
 			}, durationMs);
 		});
 
+		const unsubscribeDialogue = EventBus.on('dungeon:dialogue-requested', ({ 
+			npcName, 
+			dialogueLines, 
+			portraitAsset, 
+			onCompleteQuizId 
+		}) => {
+			setDialogueState({
+				isActive: true,
+				npcName,
+				dialogueLines,
+				portraitAsset,
+				onCompleteQuizId
+			});
+		});
+
 		return () => {
 			if (clearNoticeTimer > 0) {
 				window.clearTimeout(clearNoticeTimer);
@@ -221,6 +258,7 @@ export const App = () => {
 			unsubscribeWorld();
 			unsubscribeHud();
 			unsubscribeInteractable();
+			unsubscribeDialogue();
 		};
 	}, [isDungeonMode]);
 
@@ -402,14 +440,34 @@ export const App = () => {
 						</aside>
 					) : null}
 
-					{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
-						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
-							<section className="dungeon-quiz-panel" aria-live="polite">
-								<header className="dungeon-quiz-header">
-									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
-										{dungeonQuiz.quizId === 'yellow' ? 'Quiz Amarelo Final' : 'Quiz Azul'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
-									</h2>
-								</header>
+				{dialogueState.isActive ? (
+					<DialogueBox
+						npcName={dialogueState.npcName}
+						dialogueLines={dialogueState.dialogueLines}
+						portraitAsset={dialogueState.portraitAsset}
+						onComplete={() => {
+							setDialogueState({ 
+								...dialogueState, 
+								isActive: false 
+							});
+							if (dialogueState.onCompleteQuizId) {
+								EventBus.emit('dungeon:dialogue-finished', {
+									shouldStartQuiz: true,
+									quizId: dialogueState.onCompleteQuizId
+								});
+							}
+						}}
+					/>
+				) : null}
+
+				{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
+					<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
+						<section className="dungeon-quiz-panel" aria-live="polite">
+							<header className="dungeon-quiz-header">
+								<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
+									{dungeonQuiz.quizId === 'yellow' ? 'Quiz Amarelo Final' : 'Quiz Azul'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
+								</h2>
+							</header>
 
 								<div className="dungeon-quiz-question">
 									<p className="question-prompt-text">
@@ -488,7 +546,15 @@ export const App = () => {
 								</section>
 
 								<nav className="actions-row" aria-label="Dungeon quiz helpers">
-									<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+									<button
+										type="button"
+										className="action-button"
+										onClick={useDungeonQuizHint}
+										disabled={dungeonHintDisabled}
+										aria-disabled={dungeonHintDisabled}
+									>
+										{dungeonHintLabel}
+									</button>
 									<button
 										type="button"
 										className="action-button"
@@ -508,6 +574,10 @@ export const App = () => {
 										{dungeonSkipLabel}
 									</button>
 								</nav>
+
+								{dungeonQuiz.currentHint ? (
+									<p className="quiz-hint" aria-live="polite">Dica: {dungeonQuiz.currentHint}</p>
+								) : null}
 
 								{dungeonQuiz.isHelp2PanelOpen ? (
 									<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">
@@ -647,7 +717,15 @@ export const App = () => {
 			</section>
 
 			<nav className="actions-row" aria-label="Assistentes">
-				<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+				<button
+					type="button"
+					className="action-button"
+					onClick={useHint}
+					disabled={hintDisabled}
+					aria-disabled={hintDisabled}
+				>
+					{hintLabel}
+				</button>
 				<button
 					type="button"
 					className="action-button"
@@ -667,6 +745,10 @@ export const App = () => {
 					{skipLabel}
 				</button>
 			</nav>
+
+				{currentHint ? (
+					<p className="quiz-hint" aria-live="polite">Dica: {currentHint}</p>
+				) : null}
 
 			{isHelp2PanelOpen ? (
 				<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">

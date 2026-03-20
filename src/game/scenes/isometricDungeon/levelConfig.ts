@@ -60,6 +60,13 @@ export type DungeonEnemyNpcBehavior = {
 
 export type DungeonNpcBehavior = DungeonFriendlyNpcBehavior | DungeonEnemyNpcBehavior;
 
+export type DungeonNpcDialogue = {
+	name: string;
+	dialogue: string[];
+	portraitAsset?: string;
+	quizAfter?: 'blue' | 'yellow' | null;
+};
+
 export type DungeonLevelConfig = {
 	id: DungeonLevelId;
 	map: number[][];
@@ -69,6 +76,7 @@ export type DungeonLevelConfig = {
 	npcSpawn: Vec2 | null;
 	npcRole: DungeonNpcRole | null;
 	npcBehavior: DungeonNpcBehavior | null;
+	npcDialogue: DungeonNpcDialogue | null;
 	exitTile: Vec2 | null;
 	exitLabel: string | null;
 	markers: DungeonMarker[];
@@ -114,14 +122,37 @@ function resolveNpcSpawn(
 }
 
 const NPC_BEHAVIOR_OVERRIDES: Partial<Record<DungeonLevelId, DungeonNpcBehavior>> = {
+	[DUNGEON_LEVEL.ONE]: {
+		kind: 'friendly-stationary-fixed',
+		facing: 'south'
+	},
 	[DUNGEON_LEVEL.THREE]: {
 		kind: 'friendly-stationary-look-around',
-		lookMinMs: 900,
-		lookMaxMs: 1800
+		lookMinMs: 7000,
+		lookMaxMs: 7000
 	},
 	[DUNGEON_LEVEL.FOUR]: {
 		kind: 'friendly-stationary-fixed',
 		facing: 'west'
+	}
+};
+
+const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
+	[DUNGEON_LEVEL.ONE]: {
+		name: 'Jarbas',
+		portraitAsset: 'real-penguin-placeholder',
+		dialogue: [
+			'Quase me assustou, mas vi você se aproximando.',
+			'Já nos vimos antes? Não reconheço seu rosto. Mas também, nós pinguins somos todos iguais.',
+			'Não me diga que você é mais um pinguim metido a herói desejando chegar ao último andar da torre e resgatar as cores do mundo…',
+			'Que novidade… Dia sim, dia não, aparece alguém assim. Todos fracassaram. O mundo continua preto e branco.',
+			'Se pretende mesmo chegar ao último andar, saiba que há muitos desafios a sua espera.',
+			'Vai ter de provar sua inteligência e habilidade de resolver enigmas.',
+			'E o pior, outros pinguins querendo te derrubar. E, como disse, somos todos iguais…',
+			'Você nunca vai saber se alguém vai tentar te ajudar ou te eliminar. Só se tiver um sexto sentido para perceber essas coisas…',
+			'Enfim, falei demais. Boa sorte!'
+		],
+		quizAfter: null
 	}
 };
 
@@ -186,6 +217,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcSpawn: levelOneNpc.npcSpawn,
 			npcRole: levelOneNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.ONE, levelOneNpc.npcRole, levelOneNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.ONE] ?? null,
 			exitTile: levelOneMap.exitTile,
 			exitLabel: levelOneMap.exitTile ? 'Descend' : null,
 			markers: levelOneMap.markers,
@@ -200,6 +232,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcSpawn: levelTwoNpc.npcSpawn,
 			npcRole: levelTwoNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.TWO, levelTwoNpc.npcRole, levelTwoNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.TWO] ?? null,
 			exitTile: levelTwoMap.exitTile,
 			exitLabel: levelTwoMap.exitTile ? 'Ascend' : null,
 			markers: levelTwoMap.markers,
@@ -214,6 +247,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			npcSpawn: levelThreeNpc.npcSpawn,
 			npcRole: levelThreeNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.THREE, levelThreeNpc.npcRole, levelThreeNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.THREE] ?? null,
 			exitTile: levelThreeMap.exitTile,
 			exitLabel: levelThreeMap.exitTile ? 'Descend' : null,
 			markers: levelThreeMap.markers,
@@ -227,6 +261,7 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			playerSpawn: levelFourPlayerSpawn,
 			npcSpawn: levelFourNpc.npcSpawn,
 			npcRole: levelFourNpc.npcRole,
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.FOUR] ?? null,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.FOUR, levelFourNpc.npcRole, levelFourNpc.npcBehavior),
 			exitTile: levelFourMap.exitTile,
 			exitLabel: levelFourMap.exitTile ? 'Ascend' : null,

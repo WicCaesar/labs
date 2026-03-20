@@ -138,6 +138,11 @@ export class IsometricDungeon extends Phaser.Scene {
 			}),
 			EventBus.on('ui:dungeon-quiz-cancelled', ({ quizId }) => {
 				this.handleDungeonQuizCancelled(quizId);
+			}),
+			EventBus.on('dungeon:dialogue-finished', ({ shouldStartQuiz, quizId }) => {
+				if (shouldStartQuiz && quizId === 'blue') {
+					this.startBlueUnlockQuiz();
+				}
 			})
 		);
 		this.emitWorldColorFilterState();
@@ -185,7 +190,8 @@ export class IsometricDungeon extends Phaser.Scene {
 				updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 			}
 
-		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		}
 
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
@@ -245,20 +251,23 @@ export class IsometricDungeon extends Phaser.Scene {
 		const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(world.x, world.y);
 
-		const npcSpawn = this.ensureWalkable(level.npcSpawn);
-		const isEnemy = level.npcRole === 'enemy';
-		this.npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy);
-		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+		if (level.npcSpawn && level.npcRole && level.npcBehavior) {
+			const npcSpawn = this.ensureWalkable(level.npcSpawn);
+			const isEnemy = level.npcRole === 'enemy';
+			this.npc = spawnNpc(this, npcSpawn, isoToWorld, level.npcBehavior);
+			const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
+			this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+
+			if (isEnemy) {
+				initializeEnemyGraph(this.npc, this.collisionMap, this.mapWidth, this.mapHeight);
+			}
+		}
 
 		for (const [index, spawn] of level.pushBlocks.entries()) {
 			const blockId = `${this.currentLevel}-${spawn.kind}-${spawn.position.x}-${spawn.position.y}-${index}`;
 			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
 		}
 		this.rebuildCollisionMap();
-		if (isEnemy) {
-			initializeEnemyGraph(this.npc, this.collisionMap, this.mapWidth, this.mapHeight);
-		}
 		this.renderInteractableMarkers();
 		this.renderButtonMarkers();
 	}
@@ -311,7 +320,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 			const nearNpc = this.isPlayerNearNpc();
 			if (nearNpc) {
-				this.startBlueUnlockQuiz();
+				this.startNpcDialogue();
 				return;
 			}
 
@@ -421,6 +430,20 @@ export class IsometricDungeon extends Phaser.Scene {
 			quizId: 'blue',
 			segment: 1,
 			questionCount: this.blueQuizQuestionCount
+		});
+	}
+
+	private startNpcDialogue() {
+		const level = this.levels[this.currentLevel];
+		if (!level.npcDialogue || !this.npc) {
+			return;
+		}
+
+		EventBus.emit('dungeon:dialogue-requested', {
+			npcName: level.npcDialogue.name,
+			dialogueLines: level.npcDialogue.dialogue,
+			portraitAsset: level.npcDialogue.portraitAsset,
+			onCompleteQuizId: level.npcDialogue.quizAfter ?? null
 		});
 	}
 
@@ -584,6 +607,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.state = 'complete';
+		
+		// Unlock blue channel on level 4 completion
+		this.unlockBlueChannel();
+		
 		this.cameras.main.flash(420, 255, 220, 120);
 		EventBus.emit('dungeon:interactable-activated', {
 			level: this.currentLevel,
@@ -1318,6 +1345,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.renderButtonMarkers();
 		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
-		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		if (this.npc) {
+			syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		}
 	}
 }

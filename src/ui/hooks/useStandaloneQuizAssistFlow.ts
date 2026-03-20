@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NormalizedAnswerOption } from '../../data/questionBank';
-import { type Help2Card, getHelp2CardValues, shuffled } from './quizAssist';
+import { type Help2Card, getHelp2CardValues, pickRandomHint, shuffled } from './quizAssist';
 
 type UseStandaloneQuizAssistFlowArgs = {
 	questionId: string;
 	normalizedOptions: NormalizedAnswerOption[];
 	correctOptionId: string;
+	hints?: [string, string];
 	isAnswerLocked: boolean;
 	isGameWon: boolean;
 };
@@ -14,6 +15,7 @@ export const useStandaloneQuizAssistFlow = ({
 	questionId,
 	normalizedOptions,
 	correctOptionId,
+	hints,
 	isAnswerLocked,
 	isGameWon
 }: UseStandaloneQuizAssistFlowArgs) => {
@@ -23,6 +25,8 @@ export const useStandaloneQuizAssistFlow = ({
 	const [revealedHelp2CardId, setRevealedHelp2CardId] = useState<string | null>(null);
 	const [help2Used, setHelp2Used] = useState(false);
 	const [isResolvingHelp2, setIsResolvingHelp2] = useState(false);
+	const [hintsRemaining, setHintsRemaining] = useState(2);
+	const [currentHint, setCurrentHint] = useState<string | null>(null);
 	const help2ResolveTimeoutRef = useRef<number | null>(null);
 
 	const shuffledOptions = useMemo(() => shuffled(normalizedOptions), [normalizedOptions]);
@@ -71,6 +75,20 @@ export const useStandaloneQuizAssistFlow = ({
 		}, 2500);
 	};
 
+	const useHint = () => {
+		if (hintsRemaining <= 0 || isAnswerLocked || isGameWon || isResolvingHelp2) {
+			return;
+		}
+
+		if (!hints || hints.length === 0) {
+			setCurrentHint('Esta pergunta não possui dica cadastrada.');
+			return;
+		}
+
+		setCurrentHint(pickRandomHint(hints));
+		setHintsRemaining((prev) => Math.max(0, prev - 1));
+	};
+
 	useEffect(() => {
 		// Question changes reset all per-question helper state.
 		setRemovedOptionIds([]);
@@ -79,12 +97,20 @@ export const useStandaloneQuizAssistFlow = ({
 		setRevealedHelp2CardId(null);
 		setHelp2Used(false);
 		setIsResolvingHelp2(false);
+		setCurrentHint(null);
 
 		if (help2ResolveTimeoutRef.current !== null) {
 			window.clearTimeout(help2ResolveTimeoutRef.current);
 			help2ResolveTimeoutRef.current = null;
 		}
 	}, [questionId]);
+
+	useEffect(() => {
+		if (isGameWon) {
+			setHintsRemaining(2);
+			setCurrentHint(null);
+		}
+	}, [isGameWon]);
 
 	useEffect(() => {
 		return () => {
@@ -95,6 +121,8 @@ export const useStandaloneQuizAssistFlow = ({
 	}, []);
 
 	const help2Disabled = help2Used || isAnswerLocked || isGameWon || isHelp2PanelOpen || isResolvingHelp2;
+	const hintDisabled = hintsRemaining <= 0 || isAnswerLocked || isGameWon || isResolvingHelp2;
+	const hintLabel = `DICA ${'💡'.repeat(hintsRemaining)}`.trim();
 
 	return {
 		visibleOptions,
@@ -103,7 +131,11 @@ export const useStandaloneQuizAssistFlow = ({
 		revealedHelp2CardId,
 		isResolvingHelp2,
 		help2Disabled,
+		hintDisabled,
+		hintLabel,
+		currentHint,
 		openHelp2,
-		revealHelp2Card
+		revealHelp2Card,
+		useHint
 	};
 };

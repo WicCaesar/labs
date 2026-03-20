@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import type { MediaPayload, NormalizedAnswerOption, Segment } from '../../data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from '../../data/questionBank';
 import { EventBus } from '../../shared/events/EventBus';
-import { type Help2Card, getHelp2CardValues, shuffled } from './quizAssist';
+import { type Help2Card, getHelp2CardValues, pickRandomHint, shuffled } from './quizAssist';
 
 type DungeonQuizQuestion = {
 	id: string;
@@ -10,6 +10,7 @@ type DungeonQuizQuestion = {
 	segment: Segment;
 	prompt: MediaPayload;
 	promptText?: string;
+	hints?: [string, string];
 	options: NormalizedAnswerOption[];
 	correctOptionId: string;
 };
@@ -32,6 +33,8 @@ type DungeonQuizState = {
 	help2Used: boolean;
 	isResolvingHelp2: boolean;
 	skipsRemaining: number;
+	hintsRemaining: number;
+	currentHint: string | null;
 	feedback: string;
 };
 
@@ -49,6 +52,7 @@ type DungeonQuizRoundState = Pick<
 	| 'revealedHelp2CardId'
 	| 'help2Used'
 	| 'isResolvingHelp2'
+	| 'currentHint'
 	| 'feedback'
 >;
 
@@ -62,6 +66,7 @@ const createDungeonQuizRoundState = (feedback = DUNGEON_QUIZ_DEFAULT_FEEDBACK): 
 	revealedHelp2CardId: null,
 	help2Used: false,
 	isResolvingHelp2: false,
+	currentHint: null,
 	feedback
 });
 
@@ -75,6 +80,8 @@ const createInitialDungeonQuizState = (): DungeonQuizState => ({
 	correctAnswers: 0,
 	...createDungeonQuizRoundState(),
 	skipsRemaining: 3,
+	hintsRemaining: 2,
+	currentHint: null,
 	feedback: DUNGEON_QUIZ_DEFAULT_FEEDBACK
 });
 
@@ -90,6 +97,7 @@ const buildDungeonQuizQuestions = (questionCount: number, segment: Segment): Dun
 			segment: entry.segment,
 			prompt: entry.prompt,
 			promptText: entry.promptText,
+			hints: entry.hints,
 			options: shuffled(getNormalizedOptions(entry)),
 			correctOptionId: getCorrectOptionId(entry)
 		}));
@@ -269,6 +277,36 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		});
 	}, []);
 
+	const useDungeonQuizHint = useCallback(() => {
+		setDungeonQuiz((prev) => {
+			if (!prev.isOpen || prev.hintsRemaining <= 0 || prev.hasAnsweredCurrent || prev.isResolvingHelp2) {
+				return prev;
+			}
+
+			const currentQuestion = prev.questions[prev.currentQuestionIndex];
+			if (!currentQuestion) {
+				return prev;
+			}
+
+			const hints = currentQuestion.hints ?? [];
+			if (hints.length === 0) {
+				return {
+					...prev,
+					currentHint: 'Esta pergunta não possui dica cadastrada.',
+					feedback: 'Nenhuma dica disponível para esta pergunta.'
+				};
+			}
+
+			const hintText = pickRandomHint(hints);
+			return {
+				...prev,
+				hintsRemaining: prev.hintsRemaining - 1,
+				currentHint: hintText,
+				feedback: 'Dica revelada.'
+			};
+		});
+	}, []);
+
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setDungeonQuiz(createInitialDungeonQuizState());
@@ -435,7 +473,7 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 	}, []);
 
 	const dungeonQuizCurrentQuestion = dungeonQuiz.questions[dungeonQuiz.currentQuestionIndex];
-	const dungeonQuizProgressLabel = `Question ${Math.min(dungeonQuiz.currentQuestionIndex + 1, Math.max(dungeonQuiz.questionCount, 1))}/${Math.max(dungeonQuiz.questionCount, 1)}`;
+	const dungeonQuizProgressLabel = `Pergunta ${Math.min(dungeonQuiz.currentQuestionIndex + 1, Math.max(dungeonQuiz.questionCount, 1))}/${Math.max(dungeonQuiz.questionCount, 1)}`;
 	const dungeonQuizVisibleOptions = useMemo(() => {
 		if (!dungeonQuizCurrentQuestion) {
 			return [] as NormalizedAnswerOption[];
@@ -444,8 +482,10 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		return dungeonQuizCurrentQuestion.options.filter((option) => !dungeonQuiz.removedOptionIds.includes(option.id));
 	}, [dungeonQuizCurrentQuestion, dungeonQuiz.removedOptionIds]);
 	const dungeonSkipLabel = `PULAR ${'⏭️'.repeat(dungeonQuiz.skipsRemaining)}`;
+	const dungeonHintLabel = `DICA ${'💡'.repeat(dungeonQuiz.hintsRemaining)}`.trim();
 	const dungeonSkipDisabled = dungeonQuiz.skipsRemaining <= 0 || dungeonQuiz.hasAnsweredCurrent || dungeonQuiz.isResolvingHelp2;
 	const dungeonHelp2Disabled = dungeonQuiz.help2Used || dungeonQuiz.hasAnsweredCurrent || dungeonQuiz.isHelp2PanelOpen || dungeonQuiz.isResolvingHelp2;
+	const dungeonHintDisabled = dungeonQuiz.hintsRemaining <= 0 || dungeonQuiz.hasAnsweredCurrent || dungeonQuiz.isResolvingHelp2;
 
 	return {
 		dungeonQuiz,
@@ -453,12 +493,15 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 		dungeonQuizCurrentQuestion,
 		dungeonQuizProgressLabel,
 		dungeonQuizVisibleOptions,
+		dungeonHintLabel,
 		dungeonSkipLabel,
+		dungeonHintDisabled,
 		dungeonSkipDisabled,
 		dungeonHelp2Disabled,
 		closeDungeonQuiz,
 		onDungeonQuizOptionSelect,
 		onDungeonQuizOptionKeyDown,
+		useDungeonQuizHint,
 		skipDungeonQuizQuestion,
 		openDungeonQuizHelp2,
 		revealDungeonQuizHelp2Card

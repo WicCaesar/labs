@@ -30,6 +30,16 @@ export type AppEventMap = {
 			| 'level-four-button-puzzle'
 			| 'complete';
 	};
+	'dungeon:dialogue-requested': {
+		npcName: string;
+		dialogueLines: string[];
+		portraitAsset?: string;
+		onCompleteQuizId?: 'blue' | 'yellow' | null;
+	};
+	'dungeon:dialogue-finished': {
+		shouldStartQuiz: boolean;
+		quizId?: 'blue' | 'yellow';
+	};
 	'dungeon:quiz-requested': {
 		quizId: 'blue' | 'yellow';
 		segment: 1 | 2 | 3 | 4 | 5;
