@@ -15,7 +15,7 @@ export type AppEventMap = {
 		mode: WorldColorFilterMode;
 	};
 	'dungeon:hud-state-changed': {
-		level: 1 | 2 | 3;
+		level: 1 | 2 | 3 | 4;
 		status: string;
 		hint: string;
 		objective: string;
@@ -26,6 +26,8 @@ export type AppEventMap = {
 			| 'level-two-hunt-red'
 			| 'level-two-red-unlocked'
 			| 'level-three-hunt-yellow'
+			| 'level-three-yellow-unlocked'
+			| 'level-four-button-puzzle'
 			| 'complete';
 	};
 	'dungeon:quiz-requested': {
@@ -43,8 +45,8 @@ export type AppEventMap = {
 		quizId: 'blue' | 'yellow';
 	};
 	'dungeon:interactable-activated': {
-		level: 1 | 2 | 3;
-		type: 'interactable' | 'push-block';
+		level: 1 | 2 | 3 | 4;
+		type: 'interactable' | 'push-block' | 'button';
 		position: { x: number; y: number };
 		message: string;
 		durationMs: number;

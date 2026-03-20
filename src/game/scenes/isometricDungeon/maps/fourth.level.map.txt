@@ -1,4 +1,4 @@
-# Dungeon Level One (16x16)
+# Dungeon Level Four (19x14)
 # Legend:
 #   (space) = walkable floor
 #   0 = walkable floor
@@ -13,18 +13,12 @@
 #   s = push block (slide)
 
 XXXXXXXXXXXXXXXX
-X              X
-X P            X
-X    X    X    X
-X  X X    X X  X
-X    X         X
-X    X    X    X
-X  XXXXX XXXX  X
-X    X  S X    X
-X         X    X
-X    X    X    X
-X  X X    X X  X
-X    X    X N  X
-X              X
-X              X
+X_    X  XX   _X
+X        X  P  X
+X  XXX b       X
+X  XXX    X  X X
+XX    b X X  XXX
+X   Xb    S  XXX
+X      X     b X
+X_   X        _X
 XXXXXXXXXXXXXXXX

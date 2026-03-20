@@ -104,6 +104,8 @@ export const App = () => {
 			| 'level-two-hunt-red'
 			| 'level-two-red-unlocked'
 			| 'level-three-hunt-yellow'
+			| 'level-three-yellow-unlocked'
+			| 'level-four-button-puzzle'
 			| 'complete'
 	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
