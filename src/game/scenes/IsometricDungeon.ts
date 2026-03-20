@@ -22,7 +22,7 @@ import {
 } from './isometricDungeon/levelConfig';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
-import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
+import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement, initializeEnemyGraph } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
 
 export class IsometricDungeon extends Phaser.Scene {
@@ -171,7 +171,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			updateNpcMovement(this.npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
 		}
 
-		syncNpcSprite(this.npc, isoToWorld);
+		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
 
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
@@ -229,7 +229,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.cameras.main.centerOn(world.x, world.y);
 
 		const npcSpawn = this.ensureWalkable(level.npcSpawn);
-		this.npc = spawnNpc(this, npcSpawn, isoToWorld);
+		const isEnemy = level.npcRole === 'enemy';
+		this.npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy);
 		const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
 		this.npc.sprite.setVisible(!hideDefeatedEnemyNpc);
 
@@ -238,6 +239,9 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.pushBlocks.push(spawnPushBlock(this, spawn.kind, spawn.position, isoToWorld, blockId));
 		}
 		this.rebuildCollisionMap();
+		if (isEnemy) {
+			initializeEnemyGraph(this.npc, this.collisionMap, this.mapWidth, this.mapHeight);
+		}
 		this.renderInteractableMarkers();
 	}
 
@@ -832,9 +836,9 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.emitHudState({
 					level: 1,
 					state: this.state,
-					status: 'Quiz in progress: answer 3 questions to restore blue.',
-					hint: 'Complete the quiz overlay with keyboard or pointer. ESC closes the quiz.',
-					objective: 'Pass the 3-question quiz to unlock blue.',
+					status: 'Quiz em andamento: responda 3 perguntas para restaurar o azul.',
+					hint: 'Complete o quiz usando teclado ou mouse. ESC fecha o quiz.',
+					objective: 'Passe no quiz de 3 perguntas para desbloquear azul.',
 					canInteract: false
 				});
 				return;
@@ -843,19 +847,19 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.emitHudState({
 				level: 1,
 				state: this.state,
-				status: 'Dungeon is in grayscale. Talk to the penguin to start the blue quiz.',
+				status: 'A masmorra está em escala de cinza. Fale com o pinguim para iniciar o quiz azul.',
 				hint: nearExit
-					? 'Press E to descend now, or press E near the penguin to take the blue quiz first.'
+					? 'Pressione E para descer agora, ou pressione E perto do pinguim para fazer o quiz azul primeiro.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you.'
+						? 'Pressione E para empurrar o bloco à sua frente.'
 					: nearNpc
-						? 'Press E to start a 3-question quiz. You must score 3/3 to unlock blue.'
+						? 'Pressione E para iniciar um quiz de 3 perguntas. Tire 3/3 para desbloquear azul.'
 						: nearInteractable
-							? 'Press E near the marker to inspect it.'
+							? 'Pressione E perto da marcação para inspecioná-la.'
 						: this.lastBlueQuizCorrectAnswers > 0
-							? `Last quiz score: ${this.lastBlueQuizCorrectAnswers}/3. Talk to the penguin to retry.`
-							: 'Find the center hole to descend, or find the penguin and pass the quiz to unlock blue.',
-				objective: 'Optional: pass a 3-question quiz to unlock blue. Main path: descend to level 2.',
+							? `Última pontuação: ${this.lastBlueQuizCorrectAnswers}/3. Fale com o pinguim para tentar novamente.`
+							: 'Encontre o buraco central para descer, ou encontre o pinguim e passe no quiz para desbloquear azul.',
+				objective: 'Opcional: passe no quiz de 3 perguntas para desbloquear azul. Caminho principal: desça para o nível 2.',
 				canInteract: nearNpc || nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
@@ -865,15 +869,15 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.emitHudState({
 				level: 1,
 				state: this.state,
-				status: 'Blue restored. The descent hole is now active.',
+				status: 'Azul restaurado. O buraco de descida está ativo.',
 				hint: nearExit
-					? 'Press E to descend to the next level.'
+					? 'Pressione E para descer para o próximo nível.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you.'
+						? 'Pressione E para empurrar o bloco à sua frente.'
 					: nearInteractable
-						? 'Press E near the marker to inspect it.'
-					: 'Find the dark hole near the center of the dungeon.',
-				objective: 'Descend to level 2.',
+						? 'Pressione E perto da marcação para inspecioná-la.'
+					: 'Encontre o buraco escuro perto do centro da masmorra.',
+				objective: 'Desça para o nível 2.',
 				canInteract: nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
@@ -883,15 +887,15 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.emitHudState({
 				level: 2,
 				state: this.state,
-				status: 'The penguin is hostile now. Stay mobile.',
+				status: 'O pinguim está hostil agora. Fique em movimento.',
 				hint: nearNpc
-					? 'Press E near the enemy penguin to strike and finish it.'
+					? 'Pressione E perto do pinguim inimigo para atacar e derrotá-lo.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you and open a safer path.'
+						? 'Pressione E para empurrar o bloco à sua frente e abrir um caminho mais seguro.'
 					: nearInteractable
-						? 'Press E near the marker to inspect it while avoiding the enemy.'
-					: 'Avoid contact. Close in only when you are ready to attack.',
-				objective: 'Defeat the enemy penguin to unlock red.',
+						? 'Pressione E perto da marcação para inspecioná-la enquanto evita o inimigo.'
+					: 'Evite o contato. Aproxime-se apenas quando estiver pronto para atacar.',
+				objective: 'Derrote o pinguim inimigo para desbloquear vermelho.',
 				canInteract: nearNpc || nearInteractable || canPushFacingBlock
 			});
 			return;
@@ -901,15 +905,15 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.emitHudState({
 				level: 2,
 				state: this.state,
-				status: 'Red restored. The next stairs are now active.',
+				status: 'Vermelho restaurado. As próximas escadas estão ativas.',
 				hint: nearExit
-					? 'Press E to descend to level 3 and face the final quiz.'
+					? 'Pressione E para descer para o nível 3 e enfrentar o quiz final.'
 					: canPushFacingBlock
-						? 'Press E to push the block in front of you.'
+						? 'Pressione E para empurrar o bloco à sua frente.'
 					: nearInteractable
-						? 'Press E near the marker to inspect it.'
-						: 'Find the marked stairs to proceed to level 3.',
-				objective: 'Reach level 3 and unlock yellow (green channel).',
+						? 'Pressione E perto da marcação para inspecioná-la.'
+						: 'Encontre as escadas marcadas para seguir para o nível 3.',
+				objective: 'Chegue ao nível 3 e desbloqueie amarelo (canal verde).',
 				canInteract: nearExit || nearInteractable || canPushFacingBlock
 			});
 			return;
@@ -920,9 +924,9 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.emitHudState({
 					level: 3,
 					state: this.state,
-					status: 'Final quiz in progress: answer 3 segment-2 questions to unlock yellow.',
-					hint: 'Complete the quiz overlay with keyboard or pointer. ESC closes the quiz.',
-					objective: 'Pass the final segment-2 quiz.',
+					status: 'Quiz final em andamento: responda 3 perguntas do segmento 2 para desbloquear amarelo.',
+					hint: 'Complete o quiz usando teclado ou mouse. ESC fecha o quiz.',
+					objective: 'Passe no quiz final do segmento 2.',
 					canInteract: false
 				});
 				return;
@@ -931,17 +935,17 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.emitHudState({
 				level: 3,
 				state: this.state,
-				status: 'Final challenge: talk to the penguin to unlock yellow.',
+				status: 'Desafio final: fale com o pinguim para desbloquear amarelo.',
 				hint: nearNpc
-					? 'Press E to start a 3-question quiz from segment 2. You must score 3/3.'
+					? 'Pressione E para iniciar um quiz de 3 perguntas do segmento 2. Tire 3/3.'
 					: canPushFacingBlock
-						? 'Press E to push puzzle blocks and clear the route.'
+						? 'Pressione E para empurrar blocos de puzzle e abrir a rota.'
 					: nearInteractable
-						? 'Press E near the marker to inspect it.'
+						? 'Pressione E perto da marcação para inspecioná-la.'
 						: this.lastYellowQuizCorrectAnswers > 0
-							? `Last final quiz score: ${this.lastYellowQuizCorrectAnswers}/3. Talk to the penguin to retry.`
-							: 'Find the penguin and pass the final quiz.',
-				objective: 'Unlock yellow (green channel) to restore full RGB.',
+							? `Última pontuação final: ${this.lastYellowQuizCorrectAnswers}/3. Fale com o pinguim para tentar novamente.`
+							: 'Encontre o pinguim e passe no quiz final.',
+				objective: 'Desbloqueie amarelo (canal verde) para restaurar RGB completo.',
 				canInteract: nearNpc || nearInteractable || canPushFacingBlock
 			});
 			return;
@@ -951,16 +955,16 @@ export class IsometricDungeon extends Phaser.Scene {
 			level: 3,
 			state: 'complete',
 			status: this.blueUnlocked && this.redUnlocked
-				? 'Final challenge complete: full RGB restored.'
-				: 'Final challenge complete: green unlocked. Recover blue + red for full RGB.',
+				? 'Desafio final completo: RGB completo restaurado.'
+				: 'Desafio final completo: verde desbloqueado. Recupere azul + vermelho para RGB completo.',
 			hint: this.blueUnlocked && this.redUnlocked
 				? (nearInteractable
-					? 'All color channels recovered. Press E near a marker to inspect it.'
-					: 'All color channels recovered. Explore freely.')
+					? 'Todos os canais de cor recuperados. Pressione E perto de uma marcação para inspecioná-la.'
+					: 'Todos os canais de cor recuperados. Explore livremente.')
 				: (nearInteractable
-					? 'Green restored. Press E near a marker to inspect it while you hunt missing channels.'
-					: 'Green restored. Return to unlock remaining channels if needed.'),
-			objective: 'Completed.',
+					? 'Verde restaurado. Pressione E perto de uma marcação para inspecioná-la enquanto busca os canais faltantes.'
+					: 'Verde restaurado. Volte para desbloquear os canais restantes se necessário.'),
+			objective: 'Completo.',
 			canInteract: nearInteractable || canPushFacingBlock
 		});
 	}
@@ -1001,6 +1005,6 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.renderInteractableMarkers();
 		this.pushBlocks.forEach((block) => syncPushBlockSprite(block, isoToWorld));
 		syncPlayerSprite(this.player, isoToWorld);
-		syncNpcSprite(this.npc, isoToWorld);
+		syncNpcSprite(this.npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
 	}
 }
