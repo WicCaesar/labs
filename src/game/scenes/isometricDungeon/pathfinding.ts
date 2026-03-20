@@ -124,3 +124,40 @@ export function findPath(graph: Graph, start: Vec2, goal: Vec2): Vec2[] {
 
 	return [];
 }
+
+export function rebuildGraphForDynamicMap(
+	_existingGraph: Graph,
+	collisionMap: number[][],
+	worldWidth: number,
+	worldHeight: number
+): Graph {
+	const newGraph: Graph = {};
+
+	for (let y = 0; y < worldHeight; y++) {
+		for (let x = 0; x < worldWidth; x++) {
+			if (collisionMap[y] === undefined || collisionMap[y][x] !== 0) {
+				continue;
+			}
+
+			const key = `${x},${y}`;
+			const neighbors: Vec2[] = [];
+
+			for (let dy = -1; dy <= 1; dy++) {
+				for (let dx = -1; dx <= 1; dx++) {
+					if (dx === 0 && dy === 0) continue;
+
+					const nx = x + dx;
+					const ny = y + dy;
+
+					if (ny >= 0 && ny < worldHeight && nx >= 0 && nx < worldWidth && collisionMap[ny] !== undefined && collisionMap[ny][nx] === 0) {
+						neighbors.push({ x: nx, y: ny });
+					}
+				}
+			}
+
+			newGraph[key] = neighbors;
+		}
+	}
+
+	return newGraph;
+}
