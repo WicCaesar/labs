@@ -93,10 +93,10 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3 | 4,
-		status: 'Dungeon is in grayscale. Find the wandering penguin.',
-		hint: 'Controls: WASD/Arrows + E to interact',
-		objective: 'Unlock blue.',
+		level: 1 as 1 | 2 | 3,
+		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
+		hint: 'Controles: WASD/Setas + E para interagir',
+		objective: 'Desbloquear azul.',
 		canInteract: false,
 		state: 'level-one-hunt-blue' as
 			| 'level-one-hunt-blue'
@@ -394,7 +394,7 @@ export const App = () => {
 						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
 						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
 						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
-						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interaction available</span> : null}
+						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interação disponível</span> : null}
 					</section>
 					{dungeonInteractableNotice ? (
 						<aside className="dungeon-interactable-toast" aria-live="assertive">
@@ -407,7 +407,7 @@ export const App = () => {
 							<section className="dungeon-quiz-panel" aria-live="polite">
 								<header className="dungeon-quiz-header">
 									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
-										{dungeonQuiz.quizId === 'yellow' ? 'Final Yellow Quiz' : 'Blue Quiz'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
+										{dungeonQuiz.quizId === 'yellow' ? 'Quiz Amarelo Final' : 'Quiz Azul'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
 									</h2>
 								</header>
 
@@ -415,7 +415,7 @@ export const App = () => {
 									<p className="question-prompt-text">
 										{dungeonQuizCurrentQuestion.prompt.kind === 'text'
 											? dungeonQuizCurrentQuestion.prompt.value
-											: (dungeonQuizCurrentQuestion.promptText ?? 'Observe the prompt and select the most suitable option.')}
+											: (dungeonQuizCurrentQuestion.promptText ?? 'Observe o enunciado e selecione a alternativa mais adequada.')}
 									</p>
 									{dungeonQuizCurrentQuestion.prompt.kind === 'text'
 										? null
@@ -531,7 +531,7 @@ export const App = () => {
 															onClick={() => revealDungeonQuizHelp2Card(card)}
 															disabled={dungeonQuiz.isResolvingHelp2 && !isRevealed}
 															aria-disabled={dungeonQuiz.isResolvingHelp2 && !isRevealed}
-															aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Face-down card'}
+															aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Carta virada'}
 														>
 															{isRevealed ? (
 																<span className="help2-card-content">
@@ -573,7 +573,7 @@ export const App = () => {
 					<span className="badge">Prêmio da pergunta {dollars.format(progress.currentQuestionPrize)}</span>
 					<span className="badge">Garantido {dollars.format(progress.guaranteedPrize)}</span>
 					<span className="badge">
-						Cleared {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'none'}
+						Limpos {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'nenhum'}
 					</span>
 					<span className="badge">
 						{progress.canAdvanceByAnswer ? 'Valendo' : 'Treino'}
@@ -690,7 +690,7 @@ export const App = () => {
 										onClick={() => revealHelp2Card(card)}
 										disabled={isResolvingHelp2 && !isRevealed}
 										aria-disabled={isResolvingHelp2 && !isRevealed}
-										aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Face-down card'}
+										aria-label={isRevealed ? `${meta.title} ${meta.suit}` : 'Carta virada'}
 									>
 										{isRevealed ? (
 											<span className="help2-card-content">
