@@ -1,99 +1,96 @@
 import Phaser from 'phaser';
 import {
-DIRECTION_TO_FRAME,
-NPC_DIRECTION_MAX_MS,
-NPC_DIRECTION_MIN_MS,
-NPC_SPEED,
-PLAYER_SCALE,
-TILE_HEIGHT
+	DIRECTION_TO_FRAME,
+	NPC_DIRECTION_MIN_MS,
+	NPC_DIRECTION_MAX_MS,
+	NPC_SPEED,
+	PLAYER_SCALE,
+	TILE_HEIGHT
 } from './constants';
 import { directionFromVector, projectIsoDirectionToScreen, randomDirection, tryMoveEntity } from './navigation';
-import { buildGraph, findPath, type Graph } from './pathfinding';
 import type { DirectionKey, Vec2 } from './types';
+import type { DungeonNpcBehavior } from './levelConfig';
 
 type IsoToWorld = (isoX: number, isoY: number) => Vec2;
 
 const NPC_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
 const HEALTH_BAR_WIDTH = 36;
 const HEALTH_BAR_HEIGHT = 5;
-const HEALTH_BAR_OFFSET_Y = -TILE_HEIGHT * 1.2;
-const MAX_HEALTH = 100;
-const PATH_RECALC_INTERVAL = 500;
-const WAYPOINT_THRESHOLD = 0.25;
-const ENEMY_CHASE_BASE_SPEED_MULTIPLIER = 1.15;
+const HEALTH_BAR_OFFSET_Y = -TILE_HEIGHT * 1.8;
+const MAX_HEALTH = 5;
+const ENEMY_MOVE_SPEED = 1.8;
+const ENEMY_CATCH_DISTANCE = 0.5;
 
 const LOOK_AROUND_DIRECTIONS: DirectionKey[] = [
-'north',
-'north-east',
-'east',
-'south-east',
-'south',
-'south-west',
-'west',
-'north-west'
+	'north',
+	'north-east',
+	'east',
+	'south-east',
+	'south',
+	'south-west',
+	'west',
+	'north-west'
 ];
 
 export type FriendlyNpcBehavior =
-| {
-kind: 'friendly-wander';
-speedMultiplier: number;
-decisionMinMs: number;
-decisionMaxMs: number;
-}
-| {
-kind: 'friendly-stationary-fixed';
-facing: DirectionKey;
-}
-| {
-kind: 'friendly-stationary-look-around';
-lookMinMs: number;
-lookMaxMs: number;
-};
+	| {
+		kind: 'friendly-wander';
+		speedMultiplier: number;
+		decisionMinMs: number;
+		decisionMaxMs: number;
+	}
+	| {
+		kind: 'friendly-stationary-fixed';
+		facing: DirectionKey;
+	}
+	| {
+		kind: 'friendly-stationary-look-around';
+		lookMinMs: number;
+		lookMaxMs: number;
+	};
 
 export type EnemyNpcBehavior = {
-kind: 'enemy-chase';
-speedMultiplier: number;
+	kind: 'enemy-chase';
+	speedMultiplier: number;
 };
 
 export type NpcBehavior = FriendlyNpcBehavior | EnemyNpcBehavior;
 
 export type NpcState = {
-gridPos: Vec2;
-facing: DirectionKey;
-direction: Vec2;
-sprite: Phaser.GameObjects.Image;
-decisionTimer: number;
-lookAroundTimer: number;
-behavior: NpcBehavior;
-health: number;
-maxHealth: number;
-healthBarBg: Phaser.GameObjects.Rectangle;
-healthBarFill: Phaser.GameObjects.Rectangle;
-graph: Graph;
-path: Vec2[];
-pathIndex: number;
-pathRecalcTimer: number;
+	gridPos: Vec2;
+	facing: DirectionKey;
+	direction: Vec2;
+	sprite: Phaser.GameObjects.Image;
+	decisionTimer: number;
+	behavior: DungeonNpcBehavior;
+	lookAroundTimer: number;
+	health: number;
+	maxHealth: number;
+	healthBarBg: Phaser.GameObjects.Rectangle;
+	healthBarFill: Phaser.GameObjects.Rectangle;
+	isFrozen: boolean;
+	frozenPosition: Vec2 | null;
 };
 
 export function spawnNpc(
-scene: Phaser.Scene,
-spawnPosition: Vec2,
-isoToWorld: IsoToWorld,
-behavior: NpcBehavior
+	scene: Phaser.Scene,
+	spawnPosition: Vec2,
+	isoToWorld: IsoToWorld,
+	isEnemy: boolean,
+	behavior: DungeonNpcBehavior
 ): NpcState {
-	// Determine initial facing direction based on behavior type
-	// Stationary NPCs use their configured facing; others default to south
-	const facing: DirectionKey = behavior.kind === 'friendly-stationary-fixed' ? behavior.facing : 'south';
+	const facing: DirectionKey = 'south';
 	const world = isoToWorld(spawnPosition.x, spawnPosition.y);
-	
-	// Create sprite and position it with a small upward offset
-	// This anchors their "feet" to the ground tile (depth = Y position for proper isometric layering)
 	const sprite = scene.add.image(world.x, world.y + NPC_FEET_OFFSET_Y, DIRECTION_TO_FRAME[facing]);
+
 	sprite.setOrigin(0.5, 1);
 	sprite.setScale(PLAYER_SCALE);
 	sprite.setDepth(world.y + 9);
 
-	// Create health bars for the NPC (visible only if NPC takes damage)
+	if (isEnemy) {
+		sprite.setTint(0xff3333);
+	}
+
 	const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
 	const healthBarBg = scene.add.rectangle(
 		world.x,
@@ -117,201 +114,177 @@ behavior: NpcBehavior
 	healthBarFill.setDepth(world.y + 11);
 	healthBarFill.setVisible(false);
 
-	// Initialize pathfinding graph (used for enemy chase behavior)
-	// This will be populated when enemy chase is needed
 	return {
 		gridPos: { ...spawnPosition },
 		facing,
 		direction: randomDirection(),
 		sprite,
 		decisionTimer: Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS),
-		lookAroundTimer: 0,
 		behavior,
-		health: MAX_HEALTH,
+		lookAroundTimer: behavior.kind === 'friendly-stationary-look-around' 
+			? Phaser.Math.Between(behavior.lookMinMs, behavior.lookMaxMs) 
+			: 0,
+		health: isEnemy ? MAX_HEALTH : MAX_HEALTH,
 		maxHealth: MAX_HEALTH,
 		healthBarBg,
 		healthBarFill,
-		graph: {},
-		path: [],
-		pathIndex: 0,
-		pathRecalcTimer: 0
+		isFrozen: false,
+		frozenPosition: null
 	};
 }
 
-function setNpcFacing(npc: NpcState, facing: DirectionKey) {
-npc.facing = facing;
-npc.sprite.setTexture(DIRECTION_TO_FRAME[npc.facing]);
-}
-
-export function initializeEnemyGraph(npc: NpcState, map: number[][], worldWidth: number, worldHeight: number) {
-npc.graph = buildGraph(map, worldWidth, worldHeight);
-}
-
 export function updateNpcMovement(
-npc: NpcState,
-delta: number,
-map: number[][],
-worldWidth: number,
-worldHeight: number
+	npc: NpcState,
+	delta: number,
+	map: number[][],
+	worldWidth: number,
+	worldHeight: number
 ) {
-// Stationary NPCs don't move - just ensure they face the correct direction
 	if (npc.behavior.kind === 'friendly-stationary-fixed') {
 		if (npc.facing !== npc.behavior.facing) {
-			setNpcFacing(npc, npc.behavior.facing);
+			npc.facing = npc.behavior.facing;
 		}
 		return;
 	}
 
-	// Look-around NPCs stay in place but periodically change their facing direction
-	// This creates a natural "idle" animation where they casually look around
 	if (npc.behavior.kind === 'friendly-stationary-look-around') {
 		npc.lookAroundTimer -= delta;
 		if (npc.lookAroundTimer <= 0) {
-			// Pick a new direction that's different from current facing
 			const options = LOOK_AROUND_DIRECTIONS.filter((direction) => direction !== npc.facing);
 			const nextFacing = options[Phaser.Math.Between(0, options.length - 1)] ?? npc.facing;
-			setNpcFacing(npc, nextFacing);
-			// Reset timer for next look-around
+			npc.facing = nextFacing;
 			npc.lookAroundTimer = Phaser.Math.Between(npc.behavior.lookMinMs, npc.behavior.lookMaxMs);
 		}
 		return;
 	}
 
-	// Enemy chase behavior is handled elsewhere (in updateEnemyNpcMovement)
-	if (npc.behavior.kind === 'enemy-chase') {
+	const decisionMinMs = npc.behavior.kind === 'friendly-wander'
+		? npc.behavior.decisionMinMs
+		: NPC_DIRECTION_MIN_MS;
+	const decisionMaxMs = npc.behavior.kind === 'friendly-wander'
+		? npc.behavior.decisionMaxMs
+		: NPC_DIRECTION_MAX_MS;
+	const speedMultiplier = npc.behavior.kind === 'friendly-wander'
+		? npc.behavior.speedMultiplier
+		: 1;
+
+	npc.decisionTimer -= delta;
+	if (npc.decisionTimer <= 0) {
+		npc.direction = randomDirection();
+		npc.decisionTimer = Phaser.Math.Between(decisionMinMs, decisionMaxMs);
+	}
+
+	if (npc.direction.x === 0 && npc.direction.y === 0) {
 		return;
 	}
 
-	// Wandering NPCs randomly change direction at regular intervals
-	// This creates a natural-looking patrolling behavior
-npc.decisionTimer -= delta;
-if (npc.decisionTimer <= 0) {
-npc.direction = randomDirection();
-npc.decisionTimer = Phaser.Math.Between(npc.behavior.decisionMinMs, npc.behavior.decisionMaxMs);
-}
+	const length = Math.hypot(npc.direction.x, npc.direction.y);
+	const norm = {
+		x: npc.direction.x / length,
+		y: npc.direction.y / length
+	};
 
-if (npc.direction.x === 0 && npc.direction.y === 0) {
-return;
-}
+	const distance = (NPC_SPEED * speedMultiplier * delta) / 1000;
+	const moved = tryMoveEntity(npc.gridPos, norm, distance, map, worldWidth, worldHeight);
 
-const length = Math.hypot(npc.direction.x, npc.direction.y);
-const norm = {
-x: npc.direction.x / length,
-y: npc.direction.y / length
-};
+	if (!moved) {
+		npc.direction = randomDirection();
+		npc.decisionTimer = Phaser.Math.Between(decisionMinMs, decisionMaxMs);
+		return;
+	}
 
-const distance = (NPC_SPEED * npc.behavior.speedMultiplier * delta) / 1000;
-const moved = tryMoveEntity(npc.gridPos, norm, distance, map, worldWidth, worldHeight);
-
-if (!moved) {
-npc.direction = randomDirection();
-npc.decisionTimer = Phaser.Math.Between(npc.behavior.decisionMinMs, npc.behavior.decisionMaxMs);
-return;
-}
-
-setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(norm)));
-}
-
-function getNextWaypoint(npc: NpcState): Vec2 | null {
-while (npc.pathIndex < npc.path.length) {
-const waypoint = npc.path[npc.pathIndex];
-const dx = waypoint.x - npc.gridPos.x;
-const dy = waypoint.y - npc.gridPos.y;
-const dist = Math.hypot(dx, dy);
-
-if (dist < WAYPOINT_THRESHOLD) {
-npc.pathIndex++;
-} else {
-return waypoint;
-}
-}
-return null;
+	npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
 }
 
 export function updateEnemyNpcMovement(
-npc: NpcState,
-playerPos: Vec2,
-delta: number,
-map: number[][],
-worldWidth: number,
-worldHeight: number
+	npc: NpcState,
+	playerPos: Vec2,
+	delta: number,
+	collisionMap: number[][],
+	worldWidth: number,
+	worldHeight: number
 ) {
-npc.pathRecalcTimer -= delta;
+	if (npc.isFrozen) {
+		return;
+	}
 
-if (npc.pathRecalcTimer <= 0 || npc.path.length === 0) {
-const start = { x: Math.round(npc.gridPos.x), y: Math.round(npc.gridPos.y) };
-const goal = { x: Math.round(playerPos.x), y: Math.round(playerPos.y) };
-npc.path = findPath(npc.graph, start, goal);
-npc.pathIndex = 0;
-npc.pathRecalcTimer = PATH_RECALC_INTERVAL;
-}
+	const distToPlayer = Math.hypot(playerPos.x - npc.gridPos.x, playerPos.y - npc.gridPos.y);
 
-const target = getNextWaypoint(npc);
-if (!target) {
-return;
-}
+	if (distToPlayer <= ENEMY_CATCH_DISTANCE) {
+		console.log('[ENEMY DEBUG] Player caught! Freezing NPC at:', npc.gridPos);
+		npc.isFrozen = true;
+		npc.frozenPosition = { x: npc.gridPos.x, y: npc.gridPos.y };
+		return;
+	}
 
-const toTarget = {
-x: target.x - npc.gridPos.x,
-y: target.y - npc.gridPos.y
-};
+	const toPlayer = {
+		x: playerPos.x - npc.gridPos.x,
+		y: playerPos.y - npc.gridPos.y
+	};
 
-const dist = Math.hypot(toTarget.x, toTarget.y);
-if (dist < 0.001) {
-return;
-}
+	const dist = Math.hypot(toPlayer.x, toPlayer.y);
 
-const norm = {
-x: toTarget.x / dist,
-y: toTarget.y / dist
-};
+	if (dist < 0.1) {
+		return;
+	}
 
-const chaseSpeedMultiplier = npc.behavior.kind === 'enemy-chase'
-? npc.behavior.speedMultiplier
-: 1;
-const distance = (NPC_SPEED * ENEMY_CHASE_BASE_SPEED_MULTIPLIER * chaseSpeedMultiplier * delta) / 1000;
-const moved = tryMoveEntity(npc.gridPos, norm, distance, map, worldWidth, worldHeight);
+	const norm = {
+		x: toPlayer.x / dist,
+		y: toPlayer.y / dist
+	};
 
-if (!moved) {
-npc.direction = randomDirection();
-npc.decisionTimer = Phaser.Math.Between(NPC_DIRECTION_MIN_MS, NPC_DIRECTION_MAX_MS);
-const directionLength = Math.hypot(npc.direction.x, npc.direction.y);
-if (directionLength > 0) {
-const fallbackNorm = {
-x: npc.direction.x / directionLength,
-y: npc.direction.y / directionLength
-};
-tryMoveEntity(npc.gridPos, fallbackNorm, distance * 0.85, map, worldWidth, worldHeight);
-setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(fallbackNorm)));
-}
-return;
-}
+	const distance = (ENEMY_MOVE_SPEED * delta) / 1000;
+	const nextX = npc.gridPos.x + norm.x * distance;
+	const nextY = npc.gridPos.y + norm.y * distance;
 
-setNpcFacing(npc, directionFromVector(projectIsoDirectionToScreen(norm)));
+	const tileX = Math.round(nextX);
+	const tileY = Math.round(nextY);
+
+	const isBlocked = (tileX < 0 || tileY < 0 || tileX >= worldWidth || tileY >= worldHeight || collisionMap[tileY]?.[tileX] !== 0);
+
+	if (!isBlocked) {
+		npc.gridPos.x = nextX;
+		npc.gridPos.y = nextY;
+		npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
+	} else {
+		const canMoveX = collisionMap[Math.round(npc.gridPos.y)]?.[tileX] === 0;
+		const canMoveY = collisionMap[tileY]?.[Math.round(npc.gridPos.x)] === 0;
+
+		if (canMoveX) {
+			npc.gridPos.x = nextX;
+			npc.facing = directionFromVector(projectIsoDirectionToScreen({ x: norm.x, y: 0 }));
+		} else if (canMoveY) {
+			npc.gridPos.y = nextY;
+			npc.facing = directionFromVector(projectIsoDirectionToScreen({ x: 0, y: norm.y }));
+		}
+	}
 }
 
 export function syncNpcSprite(npc: NpcState, isoToWorld: IsoToWorld, showHealthBar: boolean) {
-const world = isoToWorld(npc.gridPos.x, npc.gridPos.y);
-npc.sprite.setPosition(world.x, world.y + NPC_FEET_OFFSET_Y);
-npc.sprite.setDepth(world.y + 9);
+	const world = isoToWorld(npc.gridPos.x, npc.gridPos.y);
+	npc.sprite.setPosition(world.x, world.y + NPC_FEET_OFFSET_Y);
+	npc.sprite.setDepth(world.y + 9);
 
-const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
-npc.healthBarBg.setPosition(world.x, barWorldY);
-npc.healthBarBg.setDepth(world.y + 10);
-npc.healthBarFill.setPosition(world.x, barWorldY);
-npc.healthBarFill.setDepth(world.y + 11);
+	const textureKey = DIRECTION_TO_FRAME[npc.facing] ?? 'penguin-south';
+	npc.sprite.setTexture(textureKey);
 
-npc.healthBarBg.setVisible(showHealthBar && npc.health < npc.maxHealth);
-npc.healthBarFill.setVisible(showHealthBar && npc.health < npc.maxHealth);
+	const barWorldY = world.y + HEALTH_BAR_OFFSET_Y;
+	npc.healthBarBg.setPosition(world.x, barWorldY);
+	npc.healthBarBg.setDepth(world.y + 10);
+	npc.healthBarFill.setPosition(world.x, barWorldY);
+	npc.healthBarFill.setDepth(world.y + 11);
 
-if (showHealthBar) {
-const healthPercent = Math.max(0, npc.health / npc.maxHealth);
-const fillWidth = HEALTH_BAR_WIDTH * healthPercent;
-npc.healthBarFill.setSize(fillWidth, HEALTH_BAR_HEIGHT);
-npc.healthBarFill.setX(world.x - HEALTH_BAR_WIDTH / 2 + fillWidth / 2);
-}
+	npc.healthBarBg.setVisible(showHealthBar);
+	npc.healthBarFill.setVisible(showHealthBar);
+
+	if (showHealthBar) {
+		const healthPercent = Math.max(0, npc.health / npc.maxHealth);
+		const fillWidth = HEALTH_BAR_WIDTH * healthPercent;
+		npc.healthBarFill.setSize(fillWidth, HEALTH_BAR_HEIGHT);
+		npc.healthBarFill.setX(world.x - HEALTH_BAR_WIDTH / 2 + fillWidth / 2);
+	}
 }
 
 export function damageEnemy(npc: NpcState, damage: number) {
-npc.health = Math.max(0, npc.health - damage);
+	npc.health = Math.max(0, npc.health - damage);
 }
