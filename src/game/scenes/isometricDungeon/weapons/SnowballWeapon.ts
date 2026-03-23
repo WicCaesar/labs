@@ -28,31 +28,31 @@ export class SnowballWeapon implements Weapon {
 
   private cooldownMs = 800;
   private currentCooldown = 0;
-  private range = 3;
+  private range = 7;
   private damage = 1;
   private speed = 1;
   private projectiles: SnowballProjectile[] = [];
 
-	update(delta: number, ctx: WeaponContext): void {
-		this.currentCooldown -= delta;
+  update(delta: number, ctx: WeaponContext): void {
+    this.currentCooldown -= delta;
 
-		// Tentar disparar apenas se há inimigos vivos
-		if (this.currentCooldown <= 0 && ctx.enemies.length > 0) {
-			const aliveEnemies = ctx.enemies.filter((e) => e.health > 0);
-			const nearestEnemy = findNearestEnemy(aliveEnemies, ctx.playerGridPos);
+    // Tentar disparar apenas se há inimigos vivos
+    if (this.currentCooldown <= 0 && ctx.enemies.length > 0) {
+      const aliveEnemies = ctx.enemies.filter((e) => e.health > 0);
+      const nearestEnemy = findNearestEnemy(aliveEnemies, ctx.playerGridPos);
 
-			if (
-				nearestEnemy &&
-				isEnemyInRange(ctx.playerGridPos, nearestEnemy, this.range)
-			) {
-				this.fire(ctx, nearestEnemy);
-				this.currentCooldown = this.cooldownMs;
-			}
-		}
+      if (
+        nearestEnemy &&
+        isEnemyInRange(ctx.playerGridPos, nearestEnemy, this.range)
+      ) {
+        this.fire(ctx, nearestEnemy);
+        this.currentCooldown = this.cooldownMs;
+      }
+    }
 
-		// Sempre atualizar projéteis existentes, mesmo sem inimigos
-		this.updateProjectiles(delta, ctx);
-	}
+    // Sempre atualizar projéteis existentes, mesmo sem inimigos
+    this.updateProjectiles(delta, ctx);
+  }
 
   private fire(ctx: WeaponContext, target: NpcState): void {
     const enemyWorld = ctx.isoToWorld(target.gridPos.x, target.gridPos.y);
