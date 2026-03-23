@@ -7,6 +7,7 @@ import {
   INTERACTION_DISTANCE,
   TILE_HEIGHT,
   TILE_WIDTH,
+  PLAYER_SCALE,
 } from "./isometricDungeon/constants";
 import {
   findPushBlockAtTile,
@@ -144,6 +145,28 @@ export class IsometricDungeon extends Phaser.Scene {
 
   private readonly POINTS_PER_KILL = 10;
 
+  private currentWave = 0;
+
+  private readonly WAVE_CONFIGS = [
+    {
+      enemyCount: 3,
+      enemyHealth: 5,
+      enemyPoints: 10,
+    },
+    {
+      enemyCount: 5,
+      enemyHealth: 30,
+      enemyPoints: 10,
+    },
+    {
+      enemyCount: 10,
+      enemyHealth: 10,
+      enemyPoints: 10,
+      bossHealth: 100,
+      bossPoints: 10,
+    },
+  ];
+
   constructor() {
     super(SCENE_KEYS.ISOMETRIC_DUNGEON);
   }
@@ -178,9 +201,8 @@ export class IsometricDungeon extends Phaser.Scene {
     this.weaponManager = new WeaponManager();
     this.weaponManager.addWeapon(new SnowballWeapon());
 
-    // 🧪 TESTE: Para testar a Espada Azul antes de completar todos os desafios,
-    // descomente a linha abaixo:
-    this.weaponManager.addWeapon(new BlueSwordWeapon());
+    // TESTE: descomente para testar a espada azul
+    // this.weaponManager.addWeapon(new BlueSwordWeapon());
 
     this.unsubscribeHandlers.push(
       EventBus.on(
@@ -255,6 +277,7 @@ export class IsometricDungeon extends Phaser.Scene {
           this.collisionMap,
           this.mapWidth,
           this.mapHeight,
+          this.npcs, // Passa todos os inimigos para separação
         );
         this.handleEnemyTouchDamage();
       } else {
@@ -346,13 +369,17 @@ export class IsometricDungeon extends Phaser.Scene {
     this.pushBlocks.forEach((block) => block.sprite.destroy());
     this.pushBlocks.length = 0;
 
+    this.currentWave = 0;
+
     const spawn = this.ensureWalkable(level.playerSpawn);
     this.player = spawnPlayer(this, spawn, isoToWorld);
     const world = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
     this.cameras.main.centerOn(world.x, world.y);
 
     const isEnemy = level.npcRole === "enemy";
-    if (level.npcSpawns.length > 0 && level.npcBehavior) {
+    if (this.currentLevel === DUNGEON_LEVEL.TWO) {
+      this.spawnWave(0);
+    } else if (level.npcSpawns.length > 0 && level.npcBehavior) {
       for (const spawnPos of level.npcSpawns) {
         const npcSpawn = this.ensureWalkable(spawnPos);
         const npc = spawnNpc(
@@ -362,9 +389,6 @@ export class IsometricDungeon extends Phaser.Scene {
           isEnemy,
           level.npcBehavior,
         );
-        const hideDefeatedEnemyNpc =
-          this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-        npc.sprite.setVisible(!hideDefeatedEnemyNpc);
         this.npcs.push(npc);
       }
     }
@@ -705,28 +729,25 @@ export class IsometricDungeon extends Phaser.Scene {
     }
   }
 
-	private updateWeaponSystem(
-		delta: number,
-		isoToWorld: (x: number, y: number) => { x: number; y: number },
-	) {
-		const isHostileLevel =
-			this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked;
+  private updateWeaponSystem(
+    delta: number,
+    isoToWorld: (x: number, y: number) => { x: number; y: number },
+  ) {
+    const isHostileLevel =
+      this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked;
 
-		// SEMPRE atualizar o weaponManager para permitir que projéteis/slashes pendentes
-		// sejam destruídos normalmente, mesmo quando o nível não é mais hostil
-		this.weaponManager.update(delta, {
-			scene: this,
-			playerGridPos: this.player.gridPos,
-			playerWorldPos: isoToWorld(
-				this.player.gridPos.x,
-				this.player.gridPos.y,
-			),
-			playerFacing: this.player.facing,
-			enemies: isHostileLevel ? this.npcs : [], // Lista vazia se não é hostile
-			isoToWorld,
-			onEnemyKilled: (npc) => this.handleEnemyKilled(npc),
-		});
-	}
+    // SEMPRE atualizar o weaponManager para permitir que projéteis/slashes pendentes
+    // sejam destruídos normalmente, mesmo quando o nível não é mais hostil
+    this.weaponManager.update(delta, {
+      scene: this,
+      playerGridPos: this.player.gridPos,
+      playerWorldPos: isoToWorld(this.player.gridPos.x, this.player.gridPos.y),
+      playerFacing: this.player.facing,
+      enemies: isHostileLevel ? this.npcs : [], // Lista vazia se não é hostile
+      isoToWorld,
+      onEnemyKilled: (npc) => this.handleEnemyKilled(npc),
+    });
+  }
 
   private handleEnemyKilled(npc: NpcState): void {
     npc.sprite.destroy();
@@ -738,11 +759,109 @@ export class IsometricDungeon extends Phaser.Scene {
       this.npcs.splice(index, 1);
     }
 
-    this.score += this.POINTS_PER_KILL;
+    const points = (npc as NpcState & { customPoints?: number }).customPoints ?? this.POINTS_PER_KILL;
+    this.score += points;
 
     if (this.npcs.length === 0) {
-      this.killEnemyUnlockRed();
+      if (this.currentWave < this.WAVE_CONFIGS.length - 1) {
+        this.currentWave++;
+        this.time.delayedCall(800, () => {
+          this.spawnWave(this.currentWave);
+        });
+      } else {
+        this.killEnemyUnlockRed();
+      }
     }
+  }
+
+  private spawnWave(waveIndex: number) {
+    const config = this.WAVE_CONFIGS[waveIndex];
+    const isoToWorld = (isoX: number, isoY: number) =>
+      this.isoToWorld(isoX, isoY);
+
+    const positions = this.getWaveSpawnPositions(config.enemyCount + (config.bossHealth ? 1 : 0));
+    const behavior = {
+      kind: "enemy-chase" as const,
+      speedMultiplier: 1,
+      maxHealth: config.enemyHealth,
+    };
+
+    for (let i = 0; i < config.enemyCount; i++) {
+      const npc = spawnNpc(
+        this,
+        positions[i],
+        isoToWorld,
+        true,
+        behavior,
+        `wave-${waveIndex}-enemy-${i}`,
+      );
+      (npc as NpcState & { customPoints?: number }).customPoints = config.enemyPoints;
+      npc.healthBarBg.setVisible(true);
+      npc.healthBarFill.setVisible(true);
+      this.npcs.push(npc);
+    }
+
+    if (config.bossHealth) {
+      const bossIndex = config.enemyCount;
+      const boss = spawnNpc(
+        this,
+        positions[bossIndex],
+        isoToWorld,
+        true,
+        { ...behavior, maxHealth: config.bossHealth, speedMultiplier: 0.7 },
+        `wave-${waveIndex}-boss`,
+      );
+      (boss as NpcState & { customPoints?: number }).customPoints = config.bossPoints;
+      boss.scale = 1.5;
+      boss.sprite.setScale(PLAYER_SCALE * 1.5);
+      boss.healthBarBg.setVisible(true);
+      boss.healthBarFill.setVisible(true);
+      this.npcs.push(boss);
+    }
+
+    this.rebuildCollisionMap();
+  }
+
+  private getWaveSpawnPositions(count: number): { x: number; y: number }[] {
+    const positions: { x: number; y: number }[] = [];
+    const centerX = Math.floor(this.mapWidth / 2);
+    const centerY = Math.floor(this.mapHeight / 2);
+    const radius = Math.max(3, Math.min(this.mapWidth, this.mapHeight) / 3);
+
+    for (let i = 0; i < count; i++) {
+      let attempts = 0;
+      let pos: { x: number; y: number } | null = null;
+      while (attempts < 20) {
+        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = radius * (0.5 + Math.random() * 0.5);
+        const x = Math.round(centerX + Math.cos(angle) * dist);
+        const y = Math.round(centerY + Math.sin(angle) * dist);
+
+        if (
+          x >= 1 &&
+          x < this.mapWidth - 1 &&
+          y >= 1 &&
+          y < this.mapHeight - 1 &&
+          this.map[y]?.[x] === 0
+        ) {
+          const tooClose = positions.some(
+            (p) => Math.hypot(p.x - x, p.y - y) < 2,
+          );
+          if (!tooClose) {
+            pos = { x, y };
+            break;
+          }
+        }
+        attempts++;
+      }
+      if (pos) {
+        positions.push(pos);
+      } else {
+        positions.push({ x: centerX + (i % 5) - 2, y: centerY + Math.floor(i / 5) - 2 });
+      }
+    }
+
+    return positions;
   }
 
   private rebuildCollisionMap() {
