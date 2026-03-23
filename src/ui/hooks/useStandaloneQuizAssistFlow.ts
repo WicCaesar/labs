@@ -80,8 +80,9 @@ export const useStandaloneQuizAssistFlow = ({
 			return;
 		}
 
-		if (!hints || hints.length === 0) {
+		if (!hints) {
 			setCurrentHint('Esta pergunta não possui dica cadastrada.');
+			setHintsRemaining((prev) => Math.max(0, prev - 1));
 			return;
 		}
 
