@@ -25,15 +25,6 @@ export type DungeonState =
 	| 'level-four-button-puzzle'
 	| 'complete';
 
-export type DungeonHudState = {
-	level: DungeonLevelId;
-	status: string;
-	hint: string;
-	objective: string;
-	canInteract: boolean;
-	state: DungeonState;
-};
-
 export type DungeonNpcRole = 'friendly' | 'enemy';
 
 export type DungeonFriendlyNpcBehavior =
@@ -60,15 +51,23 @@ export type DungeonEnemyNpcBehavior = {
 
 export type DungeonNpcBehavior = DungeonFriendlyNpcBehavior | DungeonEnemyNpcBehavior;
 
+export type DungeonNpcDialogue = {
+	name: string;
+	dialogue: string[];
+	portraitAsset?: string;
+	quizAfter?: 'blue' | 'yellow' | null;
+};
+
 export type DungeonLevelConfig = {
 	id: DungeonLevelId;
 	map: number[][];
 	mapWidth: number;
 	mapHeight: number;
 	playerSpawn: Vec2;
-	npcSpawn: Vec2 | null;
+	npcSpawns: Vec2[];
 	npcRole: DungeonNpcRole | null;
 	npcBehavior: DungeonNpcBehavior | null;
+	npcDialogue: DungeonNpcDialogue | null;
 	exitTile: Vec2 | null;
 	exitLabel: string | null;
 	markers: DungeonMarker[];
@@ -80,11 +79,10 @@ export type DungeonInteractableMarker = Extract<DungeonMarker, { type: 'interact
 function resolveNpcSpawn(
 	friendlyNpcSpawns: Vec2[],
 	enemyNpcSpawns: Vec2[]
-): { npcSpawn: Vec2 | null; npcRole: DungeonNpcRole | null; npcBehavior: DungeonNpcBehavior | null } {
-	// Enemy spawn has priority when both are present so level behavior remains explicit.
+): { npcSpawns: Vec2[]; npcRole: DungeonNpcRole | null; npcBehavior: DungeonNpcBehavior | null } {
 	if (enemyNpcSpawns.length > 0) {
 		return {
-			npcSpawn: enemyNpcSpawns[0],
+			npcSpawns: enemyNpcSpawns,
 			npcRole: 'enemy',
 			npcBehavior: {
 				kind: 'enemy-chase',
@@ -95,7 +93,7 @@ function resolveNpcSpawn(
 
 	if (friendlyNpcSpawns.length > 0) {
 		return {
-			npcSpawn: friendlyNpcSpawns[0],
+			npcSpawns: [friendlyNpcSpawns[0]],
 			npcRole: 'friendly',
 			npcBehavior: {
 				kind: 'friendly-wander',
@@ -107,21 +105,51 @@ function resolveNpcSpawn(
 	}
 
 	return {
-		npcSpawn: null,
+		npcSpawns: [],
 		npcRole: null,
 		npcBehavior: null
 	};
 }
 
+// NPC behavior overrides: customize NPC behavior per level
+// If a level doesn't have an override, the NPC's default behavior (from map markers) is used
+// This system allows you to configure NPCs without editing the level map files
+// Examples:
+// - Level 1: Jarbas is stationary and faces south (idle pose)
+// - Level 3: NPC looks around every 7 seconds (creates natural "waiting" animation)
+// - Level 4: NPC faces west (toward puzzle area)
 const NPC_BEHAVIOR_OVERRIDES: Partial<Record<DungeonLevelId, DungeonNpcBehavior>> = {
+	[DUNGEON_LEVEL.ONE]: {
+		kind: 'friendly-stationary-fixed',
+		facing: 'south'
+	},
 	[DUNGEON_LEVEL.THREE]: {
 		kind: 'friendly-stationary-look-around',
-		lookMinMs: 900,
-		lookMaxMs: 1800
+		lookMinMs: 7000,
+		lookMaxMs: 7000
 	},
 	[DUNGEON_LEVEL.FOUR]: {
 		kind: 'friendly-stationary-fixed',
 		facing: 'west'
+	}
+};
+
+const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
+	[DUNGEON_LEVEL.ONE]: {
+		name: 'Jarbas',
+		portraitAsset: 'real-penguin-placeholder',
+		dialogue: [
+			'Quase me assustou, mas vi você se aproximando.',
+			'Já nos vimos antes? Não reconheço seu rosto. Mas também, nós pinguins somos todos iguais.',
+			'Não me diga que você é mais um pinguim metido a herói desejando chegar ao último andar da torre e resgatar as cores do mundo…',
+			'Que novidade… Dia sim, dia não, aparece alguém assim. Todos fracassaram. O mundo continua preto e branco.',
+			'Se pretende mesmo chegar ao último andar, saiba que há muitos desafios a sua espera.',
+			'Vai ter de provar sua inteligência e habilidade de resolver enigmas.',
+			'E o pior, outros pinguins querendo te derrubar. E, como disse, somos todos iguais…',
+			'Você nunca vai saber se alguém vai tentar te ajudar ou te eliminar. Só se tiver um sexto sentido para perceber essas coisas…',
+			'Enfim, falei demais. Boa sorte!'
+		],
+		quizAfter: null
 	}
 };
 
@@ -183,9 +211,10 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelOneMap.width,
 			mapHeight: levelOneMap.height,
 			playerSpawn: levelOnePlayerSpawn,
-			npcSpawn: levelOneNpc.npcSpawn,
+			npcSpawns: levelOneNpc.npcSpawns,
 			npcRole: levelOneNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.ONE, levelOneNpc.npcRole, levelOneNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.ONE] ?? null,
 			exitTile: levelOneMap.exitTile,
 			exitLabel: levelOneMap.exitTile ? 'Descend' : null,
 			markers: levelOneMap.markers,
@@ -197,9 +226,10 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelTwoMap.width,
 			mapHeight: levelTwoMap.height,
 			playerSpawn: levelTwoPlayerSpawn,
-			npcSpawn: levelTwoNpc.npcSpawn,
+			npcSpawns: levelTwoNpc.npcSpawns,
 			npcRole: levelTwoNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.TWO, levelTwoNpc.npcRole, levelTwoNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.TWO] ?? null,
 			exitTile: levelTwoMap.exitTile,
 			exitLabel: levelTwoMap.exitTile ? 'Ascend' : null,
 			markers: levelTwoMap.markers,
@@ -211,9 +241,10 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelThreeMap.width,
 			mapHeight: levelThreeMap.height,
 			playerSpawn: levelThreePlayerSpawn,
-			npcSpawn: levelThreeNpc.npcSpawn,
+			npcSpawns: levelThreeNpc.npcSpawns,
 			npcRole: levelThreeNpc.npcRole,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.THREE, levelThreeNpc.npcRole, levelThreeNpc.npcBehavior),
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.THREE] ?? null,
 			exitTile: levelThreeMap.exitTile,
 			exitLabel: levelThreeMap.exitTile ? 'Descend' : null,
 			markers: levelThreeMap.markers,
@@ -225,8 +256,9 @@ export function createLevelConfig(): Record<DungeonLevelId, DungeonLevelConfig> 
 			mapWidth: levelFourMap.width,
 			mapHeight: levelFourMap.height,
 			playerSpawn: levelFourPlayerSpawn,
-			npcSpawn: levelFourNpc.npcSpawn,
+			npcSpawns: levelFourNpc.npcSpawns,
 			npcRole: levelFourNpc.npcRole,
+			npcDialogue: NPC_DIALOGUE_DATA[DUNGEON_LEVEL.FOUR] ?? null,
 			npcBehavior: applyNpcBehaviorOverride(DUNGEON_LEVEL.FOUR, levelFourNpc.npcRole, levelFourNpc.npcBehavior),
 			exitTile: levelFourMap.exitTile,
 			exitLabel: levelFourMap.exitTile ? 'Ascend' : null,

@@ -1,123 +1,47 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { EventBus } from './shared/events/EventBus';
 import type { WorldColorFilterMode } from './shared/events/EventBus';
-import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
+import type { QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
-import { SCENE_KEYS } from './shared/constants/sceneKeys';
 import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
 import { HELP2_CARD_META } from './ui/hooks/quizAssist';
 import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
-
-const dollars = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 0
-});
-
-const MediaBlock = ({
-	media,
-	includeSupplemental = true,
-	audioLabel = 'Áudio'
-}: {
-	media: MediaPayload;
-	includeSupplemental?: boolean;
-	audioLabel?: string;
-}) => {
-	if (media.kind === 'text') {
-		return <p className="media-text">{media.value}</p>;
-	}
-
-	if (media.kind === 'audio') {
-		return (
-			<div className="media-audio" role="group" aria-label={audioLabel}>
-				<div className="media-main">
-					<audio controls preload="metadata" aria-label={audioLabel}>
-						<source src={media.value} />
-						Navegador sem suporte para esse áudio. Informe-nos.
-					</audio>
-				</div>
-				{includeSupplemental ? (
-					<div className="media-supplemental media-supplemental-audio">
-						{media.transcript ? (
-							<details>
-								<summary>Transcrição</summary>
-								<p>{media.transcript}</p>
-							</details>
-						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-						{media.credit ? (
-							<p className="media-credit">Fonte: {media.credit}</p>
-						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-					</div>
-				) : null}
-			</div>
-		);
-	}
-
-	return (
-		<figure className="media-figure">
-			<div className="media-main">
-				<img
-					src={media.value}
-					alt={media.alt ?? 'Mídia'}
-					loading="lazy"
-					decoding="async"
-				/>
-			</div>
-			{includeSupplemental ? (
-				<figcaption className="media-supplemental media-figure-caption">
-					{media.credit ? `Fonte: ${media.credit}` : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-				</figcaption>
-			) : null}
-		</figure>
-	);
-};
-
-const OptionContent = ({
-	option,
-	includeSupplemental = true
-}: {
-	option: NormalizedAnswerOption;
-	includeSupplemental?: boolean;
-}) => {
-	return (
-		<MediaBlock
-			media={option.content}
-			includeSupplemental={includeSupplemental}
-			audioLabel="Áudio"
-		/>
-	);
-};
+import DialogueBox from './ui/components/DialogueBox';
+import { MediaBlock, OptionContent } from './ui/components/QuizMedia';
+import { HintOverlay } from './ui/components/HintOverlay';
+import { ThemeTextDrawer } from './ui/components/ThemeTextDrawer';
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
-	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3,
-		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
-		hint: 'Controles: WASD/Setas + E para interagir',
-		objective: 'Desbloquear azul.',
-		canInteract: false,
-		state: 'level-one-hunt-blue' as
-			| 'level-one-hunt-blue'
-			| 'level-one-blue-unlocked'
-			| 'level-two-hunt-red'
-			| 'level-two-red-unlocked'
-			| 'level-three-hunt-yellow'
-			| 'level-three-yellow-unlocked'
-			| 'level-four-button-puzzle'
-			| 'complete'
-	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
+	const [dialogueState, setDialogueState] = useState<{
+		isActive: boolean;
+		npcName: string;
+		dialogueLines: string[];
+		portraitAsset?: string;
+		onCompleteQuizId?: 'blue' | 'yellow' | null;
+	}>({
+		isActive: false,
+		npcName: '',
+		dialogueLines: [],
+		portraitAsset: undefined,
+		onCompleteQuizId: null
+	});
 	const {
 		dungeonQuiz,
 		dungeonQuizHeadingRef,
 		dungeonQuizCurrentQuestion,
 		dungeonQuizProgressLabel,
 		dungeonQuizVisibleOptions,
+		dungeonHintLabel,
 		dungeonSkipLabel,
+		dungeonHintDisabled,
 		dungeonSkipDisabled,
 		dungeonHelp2Disabled,
+		useDungeonQuizHint,
+		dismissDungeonQuizHint,
 		onDungeonQuizOptionSelect,
 		onDungeonQuizOptionKeyDown,
 		skipDungeonQuizQuestion,
@@ -160,12 +84,18 @@ export const App = () => {
 		revealedHelp2CardId,
 		isResolvingHelp2,
 		help2Disabled,
+		hintDisabled,
+		hintLabel,
+		currentHint,
 		openHelp2,
-		revealHelp2Card
+		revealHelp2Card,
+		useHint,
+		dismissHint
 	} = useStandaloneQuizAssistFlow({
 		questionId: question.id,
 		normalizedOptions,
 		correctOptionId,
+		hints: question.hints,
 		isAnswerLocked: selectedOptionId !== null,
 		isGameWon: progress.isGameWon
 	});
@@ -175,12 +105,22 @@ export const App = () => {
 		: (question.promptText ?? 'Observe o que está abaixo e escolha a resposta mais adequada.');
 
 	useEffect(() => {
-		const game = StartGame(
-			'game-container',
-			isDungeonMode ? SCENE_KEYS.ISOMETRIC_DUNGEON : SCENE_KEYS.QUIZ_GAME
-		);
+		const game = StartGame('game-container');
+
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				document.querySelectorAll('audio').forEach((audio) => {
+					if (!audio.paused) {
+						audio.pause();
+					}
+				});
+			}
+		};
+
+		document.addEventListener('visibilitychange', handleVisibilityChange);
 
 		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			game.destroy(true);
 		};
 	}, [isDungeonMode]);
@@ -188,7 +128,6 @@ export const App = () => {
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setWorldFilterMode('none');
-			setDungeonInteractableNotice(null);
 			return;
 		}
 
@@ -196,10 +135,6 @@ export const App = () => {
 
 		const unsubscribeWorld = EventBus.on('world:color-filter-state-changed', ({ mode }) => {
 			setWorldFilterMode(mode);
-		});
-
-		const unsubscribeHud = EventBus.on('dungeon:hud-state-changed', (hudState) => {
-			setDungeonHud(hudState);
 		});
 
 		let clearNoticeTimer = 0;
@@ -214,16 +149,27 @@ export const App = () => {
 			}, durationMs);
 		});
 
+		const unsubscribeDialogue = EventBus.on('dungeon:dialogue-requested', ({ 
+			npcName, 
+			dialogueLines, 
+			portraitAsset, 
+			onCompleteQuizId 
+		}) => {
+			setDialogueState({
+				isActive: true,
+				npcName,
+				dialogueLines,
+				portraitAsset,
+				onCompleteQuizId
+			});
+		});
+
 		return () => {
-			if (clearNoticeTimer > 0) {
-				window.clearTimeout(clearNoticeTimer);
-			}
 			unsubscribeWorld();
-			unsubscribeHud();
 			unsubscribeInteractable();
+			unsubscribeDialogue();
 		};
 	}, [isDungeonMode]);
-
 
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
@@ -247,6 +193,28 @@ export const App = () => {
 			segment: question.segment
 		});
 	}, [question.id, question.segment]);
+
+	useEffect(() => {
+		const hasVisibleHint = Boolean(currentHint || dungeonQuiz.currentHint);
+		if (!hasVisibleHint) {
+			return;
+		}
+
+		const handleSpaceDismissHint = (event: globalThis.KeyboardEvent) => {
+			if (event.code !== 'Space') {
+				return;
+			}
+
+			event.preventDefault();
+			dismissHint();
+			dismissDungeonQuizHint();
+		};
+
+		window.addEventListener('keydown', handleSpaceDismissHint);
+		return () => {
+			window.removeEventListener('keydown', handleSpaceDismissHint);
+		};
+	}, [currentHint, dungeonQuiz.currentHint, dismissHint, dismissDungeonQuizHint]);
 
 	const onOptionSelect = (optionId: string) => {
 		setSelectedOptionId(optionId);
@@ -290,8 +258,6 @@ export const App = () => {
 	const skipDisabled = progress.skipsRemaining <= 0;
 	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
 
-	// Filter IDs here must stay in sync with CSS classes in public/style.css
-	// and WorldColorFilterMode values from the typed EventBus contract.
 	const worldFilterDefs = (
 		<svg className="color-filter-defs" aria-hidden="true" focusable="false">
 			<defs>
@@ -388,28 +354,40 @@ export const App = () => {
 				{worldFilterDefs}
 				<main className={`dungeon-layout ${worldFilterClass}`.trim()} aria-label="Isometric Dungeon">
 					<div id="game-container" className="phaser-host is-visible" />
-					<section className="dungeon-hud" aria-live="polite">
-						<p className="dungeon-hud-level">Level {dungeonHud.level}</p>
-						<p className="dungeon-hud-status">{dungeonHud.status}</p>
-						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
-						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
-						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
-						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interação disponível</span> : null}
-					</section>
 					{dungeonInteractableNotice ? (
 						<aside className="dungeon-interactable-toast" aria-live="assertive">
 							{dungeonInteractableNotice}
 						</aside>
 					) : null}
 
-					{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
-						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
-							<section className="dungeon-quiz-panel" aria-live="polite">
-								<header className="dungeon-quiz-header">
-									<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
-										{dungeonQuiz.quizId === 'yellow' ? 'Quiz Amarelo Final' : 'Quiz Azul'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
-									</h2>
-								</header>
+				{dialogueState.isActive ? (
+					<DialogueBox
+						npcName={dialogueState.npcName}
+						dialogueLines={dialogueState.dialogueLines}
+						portraitAsset={dialogueState.portraitAsset}
+						onComplete={() => {
+							setDialogueState({ 
+								...dialogueState, 
+								isActive: false 
+							});
+							if (dialogueState.onCompleteQuizId) {
+								EventBus.emit('dungeon:dialogue-finished', {
+									shouldStartQuiz: true,
+									quizId: dialogueState.onCompleteQuizId
+								});
+							}
+						}}
+					/>
+				) : null}
+
+				{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
+					<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
+						<section className="dungeon-quiz-panel" aria-live="polite">
+							<header className="dungeon-quiz-header">
+								<h2 id="dungeon-quiz-title" ref={dungeonQuizHeadingRef} tabIndex={-1}>
+									{dungeonQuiz.quizId === 'yellow' ? 'Quiz Amarelo Final' : 'Quiz Azul'} - {dungeonQuizProgressLabel} - Respostas corretas: {dungeonQuiz.correctAnswers}
+								</h2>
+							</header>
 
 								<div className="dungeon-quiz-question">
 									<p className="question-prompt-text">
@@ -488,7 +466,15 @@ export const App = () => {
 								</section>
 
 								<nav className="actions-row" aria-label="Dungeon quiz helpers">
-									<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+									<button
+										type="button"
+										className="action-button"
+										onClick={useDungeonQuizHint}
+										disabled={dungeonHintDisabled}
+										aria-disabled={dungeonHintDisabled}
+									>
+										{dungeonHintLabel}
+									</button>
 									<button
 										type="button"
 										className="action-button"
@@ -508,6 +494,14 @@ export const App = () => {
 										{dungeonSkipLabel}
 									</button>
 								</nav>
+
+								{dungeonQuiz.currentHint ? (
+									<HintOverlay
+										hint={dungeonQuiz.currentHint}
+										onDismiss={dismissDungeonQuizHint}
+										ariaLabel="Dica do quiz"
+									/>
+								) : null}
 
 								{dungeonQuiz.isHelp2PanelOpen ? (
 									<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">
@@ -556,6 +550,7 @@ export const App = () => {
 							</section>
 						</div>
 					) : null}
+					<ThemeTextDrawer />
 				</main>
 			</>
 		);
@@ -570,8 +565,8 @@ export const App = () => {
 			<header className="question-panel" role="region" aria-labelledby="question-title">
 				<div className="question-meta">
 					<span className="badge">Segmento {progress.activeSegment}</span>
-					<span className="badge">Prêmio da pergunta {dollars.format(progress.currentQuestionPrize)}</span>
-					<span className="badge">Garantido {dollars.format(progress.guaranteedPrize)}</span>
+					<span className="badge">Prêmio da pergunta R$ {progress.currentQuestionPrize}</span>
+					<span className="badge">Garantido R$ {progress.guaranteedPrize}</span>
 					<span className="badge">
 						Limpos {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'nenhum'}
 					</span>
@@ -647,7 +642,15 @@ export const App = () => {
 			</section>
 
 			<nav className="actions-row" aria-label="Assistentes">
-				<button type="button" className="action-button" disabled aria-disabled="true">AJUDA 1</button>
+				<button
+					type="button"
+					className="action-button"
+					onClick={useHint}
+					disabled={hintDisabled}
+					aria-disabled={hintDisabled}
+				>
+					{hintLabel}
+				</button>
 				<button
 					type="button"
 					className="action-button"
@@ -667,6 +670,14 @@ export const App = () => {
 					{skipLabel}
 				</button>
 			</nav>
+
+				{currentHint ? (
+					<HintOverlay
+						hint={currentHint}
+						onDismiss={dismissHint}
+						ariaLabel="Dica"
+					/>
+				) : null}
 
 			{isHelp2PanelOpen ? (
 				<div className="help2-overlay" role="dialog" aria-modal="true" aria-label="Elimine alternativas erradas com os discos.">

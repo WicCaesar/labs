@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Reddit+Sans+Condensed:wght@300;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Reddit+Sans+Condensed:wght@300;500;600&display=swap');
 
 body {
     margin: 0;
@@ -83,58 +83,11 @@ textarea {
     opacity: 1;
     pointer-events: auto;
     overflow: hidden;
+    z-index: 1;
 }
 
-.dungeon-hud {
-    position: fixed;
-    top: 0.8rem;
-    left: 0.8rem;
-    z-index: 30;
-    width: min(92vw, 420px);
-    display: grid;
-    gap: 0.3rem;
-    padding: 0.75rem 0.8rem;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    border-radius: 10px;
-    background: rgba(10, 14, 18, 0.78);
-    backdrop-filter: blur(4px);
-}
-
-.dungeon-hud p {
-    margin: 0;
-}
-
-.dungeon-hud-level {
-    font-size: 0.75rem;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: #9ad9ff;
-}
-
-.dungeon-hud-status {
-    color: #ffffff;
-    font-size: 0.95rem;
-}
-
-.dungeon-hud-objective,
-.dungeon-hud-hint,
-.dungeon-hud-controls {
-    color: #d7dde2;
-    font-size: 0.82rem;
-    line-height: 1.3;
-}
-
-.dungeon-hud-ready {
-    display: inline-block;
-    margin-top: 0.25rem;
-    padding: 0.15rem 0.4rem;
-    border-radius: 999px;
-    background: rgba(92, 194, 123, 0.2);
-    border: 1px solid rgba(92, 194, 123, 0.7);
-    font-size: 0.72rem;
-    color: #d8ffe4;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+.phaser-host.is-visible canvas {
+    z-index: 1;
 }
 
 .dungeon-interactable-toast {
@@ -540,6 +493,36 @@ textarea {
 
 .help2-card.face-3 {
     background: #3a1124;
+}
+
+.quiz-hint-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    z-index: 45;
+    cursor: pointer;
+}
+
+.quiz-hint-panel {
+    width: min(640px, 100%);
+    background: #121212;
+    border: 2px solid #f58b32;
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.quiz-hint-message {
+    margin: 0;
+    font-size: clamp(1rem, 2.2vw, 1.25rem);
+    line-height: 1.4;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #f2f2f2;
+    letter-spacing: 0.03em;
 }
 
 @keyframes card-shake {

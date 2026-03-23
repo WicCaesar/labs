@@ -11,24 +11,19 @@ export type WorldColorFilterMode =
 	| 'green-blue-unlocked';
 
 export type AppEventMap = {
+	'scene:main-screen-started': Record<string, never>;
 	'world:color-filter-state-changed': {
 		mode: WorldColorFilterMode;
 	};
-	'dungeon:hud-state-changed': {
-		level: 1 | 2 | 3 | 4;
-		status: string;
-		hint: string;
-		objective: string;
-		canInteract: boolean;
-		state:
-			| 'level-one-hunt-blue'
-			| 'level-one-blue-unlocked'
-			| 'level-two-hunt-red'
-			| 'level-two-red-unlocked'
-			| 'level-three-hunt-yellow'
-			| 'level-three-yellow-unlocked'
-			| 'level-four-button-puzzle'
-			| 'complete';
+	'dungeon:dialogue-requested': {
+		npcName: string;
+		dialogueLines: string[];
+		portraitAsset?: string;
+		onCompleteQuizId?: 'blue' | 'yellow' | null;
+	};
+	'dungeon:dialogue-finished': {
+		shouldStartQuiz: boolean;
+		quizId?: 'blue' | 'yellow';
 	};
 	'dungeon:quiz-requested': {
 		quizId: 'blue' | 'yellow';
@@ -79,6 +74,31 @@ export type AppEventMap = {
 		canAdvanceByAnswer: boolean;
 		isGameWon: boolean;
 		skipsRemaining: number;
+	};
+	'dungeon:collectibles-spawned': {
+		levelId: 1 | 2 | 3 | 4;
+		collectibles: Array<{
+			id: string;
+			text: string;
+			position: { x: number; y: number };
+		}>;
+		fullText: string;
+		keywords: Array<{
+			id: string;
+			originalCase: string;
+		}>;
+		themeTitle: string;
+	};
+	'dungeon:collectible-picked-up': {
+		itemId: string;
+		itemText: string;
+		originalCase: string;
+		keywordIndex: number;
+		collectedCount: number;
+		totalCount: number;
+	};
+	'dungeon:collectibles-cleared': {
+		levelId: 1 | 2 | 3 | 4;
 	};
 };
 
