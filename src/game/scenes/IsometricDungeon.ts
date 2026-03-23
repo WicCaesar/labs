@@ -21,7 +21,7 @@ import {
 } from './isometricDungeon/levelConfig';
 import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
-import type { Vec2 } from './isometricDungeon/types';
+import type { DirectionKey, Vec2 } from './isometricDungeon/types';
 import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement, damageEnemy } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
 import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
@@ -35,6 +35,21 @@ import {
 import { COLLECTIBLE_CONFIGS } from '../../shared/constants/collectibleConfig';
 import { spawnCollectibles, updateCollectibleOverlap, removeCollectibleFromWorld, clearAllCollectibles } from './isometricDungeon/collectibles';
 import type { CollectibleItem } from '../../shared/types/collectibles';
+
+const SPIN_DIRECTIONS: DirectionKey[] = [
+	'north',
+	'north-east',
+	'east',
+	'south-east',
+	'south',
+	'south-west',
+	'west',
+	'north-west'
+];
+
+const SPIN_FRAME_DURATION_MS = 120;
+const LERDILSON_JUMP_PERIOD_MS = 560;
+const LERDILSON_JUMP_AMPLITUDE = TILE_HEIGHT * 0.16;
 
 export class IsometricDungeon extends Phaser.Scene {
 	private readonly map: number[][] = [];
@@ -128,6 +143,8 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private readonly POINTS_PER_KILL = 10;
 
+	private lerdilsonSpinElapsedMs = 0;
+
 	constructor() {
 		super(SCENE_KEYS.ISOMETRIC_DUNGEON);
 	}
@@ -214,6 +231,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		for (const npc of this.npcs) {
 			syncNpcSprite(npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !allEnemiesDefeated);
 		}
+
+		this.applyLerdilsonCelebrationSpin(delta);
 
 		this.updateWeaponSystem(delta, isoToWorld);
 
@@ -406,11 +425,47 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 		this.emitWorldColorFilterState();
 		this.cameras.main.flash(300, 90, 130, 255);
+
+		if (this.currentLevel === DUNGEON_LEVEL.FOUR && !this.isNpcDialogueActive && this.npcs.length > 0) {
+			const npcDialogue = this.levels[this.currentLevel].npcDialogue;
+			if (npcDialogue?.postUnlockDialogue && npcDialogue.postUnlockDialogue.length > 0) {
+				const dialogueLines = this.getResolvedPostUnlockDialogueLines(npcDialogue);
+				if (dialogueLines.length === 0) {
+					return;
+				}
+
+				this.isNpcDialogueActive = true;
+				EventBus.emit('dungeon:dialogue-requested', {
+					npcName: npcDialogue.name,
+					dialogueLines,
+					portraitAsset: npcDialogue.portraitAsset,
+					onCompleteQuizId: null
+				});
+			}
+		}
 	}
 
 	private startNpcDialogue() {
 		const level = this.levels[this.currentLevel];
 		if (!level.npcDialogue || this.npcs.length === 0) {
+			return;
+		}
+
+		const hasPostUnlockDialogue = this.shouldUsePostUnlockDialogue(level.npcDialogue);
+		if (hasPostUnlockDialogue && level.npcDialogue.postUnlockDialogue) {
+			const dialogueLines = this.getResolvedPostUnlockDialogueLines(level.npcDialogue);
+			if (dialogueLines.length === 0) {
+				return;
+			}
+
+			this.isNpcDialogueActive = true;
+
+			EventBus.emit('dungeon:dialogue-requested', {
+				npcName: level.npcDialogue.name,
+				dialogueLines,
+				portraitAsset: level.npcDialogue.portraitAsset,
+				onCompleteQuizId: null
+			});
 			return;
 		}
 
@@ -458,6 +513,63 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.startYellowUnlockQuiz();
+	}
+
+	private shouldUsePostUnlockDialogue(npcDialogue: NonNullable<DungeonLevelConfig['npcDialogue']>): boolean {
+		if (!npcDialogue.postUnlockDialogue || npcDialogue.postUnlockDialogue.length === 0) {
+			return false;
+		}
+
+		if (this.currentLevel === DUNGEON_LEVEL.THREE && this.state === 'level-three-yellow-unlocked') {
+			return true;
+		}
+
+		if (this.currentLevel === DUNGEON_LEVEL.FOUR && this.blueUnlocked) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private getResolvedPostUnlockDialogueLines(
+		npcDialogue: NonNullable<DungeonLevelConfig['npcDialogue']>
+	): string[] {
+		const lines = npcDialogue.postUnlockDialogue ?? [];
+		if (lines.length === 0) {
+			return [];
+		}
+
+		if (this.currentLevel === DUNGEON_LEVEL.FOUR && this.blueUnlocked) {
+			const randomLine = Phaser.Utils.Array.GetRandom(lines);
+			return randomLine ? [randomLine] : [];
+		}
+
+		return lines;
+	}
+
+	private applyLerdilsonCelebrationSpin(delta: number) {
+		if (this.currentLevel !== DUNGEON_LEVEL.FOUR || !this.blueUnlocked || this.npcs.length === 0) {
+			this.lerdilsonSpinElapsedMs = 0;
+			return;
+		}
+
+		const npcDialogue = this.levels[this.currentLevel].npcDialogue;
+		if (npcDialogue?.name !== 'Lerdilson') {
+			this.lerdilsonSpinElapsedMs = 0;
+			return;
+		}
+
+		this.lerdilsonSpinElapsedMs += delta;
+		const frameIndex = Math.floor(this.lerdilsonSpinElapsedMs / SPIN_FRAME_DURATION_MS) % SPIN_DIRECTIONS.length;
+		const facing = SPIN_DIRECTIONS[frameIndex] ?? 'south';
+		const jumpPhase = (this.lerdilsonSpinElapsedMs % LERDILSON_JUMP_PERIOD_MS) / LERDILSON_JUMP_PERIOD_MS;
+		const jumpOffset = Math.abs(Math.sin(jumpPhase * Math.PI * 2)) * LERDILSON_JUMP_AMPLITUDE;
+
+		for (const npc of this.npcs) {
+			npc.facing = facing;
+			syncNpcSprite(npc, (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY), false);
+			npc.sprite.setY(npc.sprite.y - jumpOffset);
+		}
 	}
 
 	private startYellowUnlockQuiz() {

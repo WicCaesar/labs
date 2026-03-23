@@ -55,6 +55,7 @@ export type DungeonNpcDialogue = {
 	name: string;
 	dialogue: string[];
 	alternateDialogues?: string[][];
+	postUnlockDialogue?: string[];
 	interactionMode?: 'always-repeat' | 'alternate-after-first' | 'once' | 'once-then-quiz';
 	startQuizAfterDialogue?: boolean;
 	portraitAsset?: string;
@@ -175,6 +176,9 @@ const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
 			'Não sei se posso confiar em você. Se você responder a três perguntas corretamente, ficarei menos desconfiada e vou te entregar o pigmento amarelo.',
 			'Se for muito difícil, você pode coletar as palavras espalhadas para completar o texto e, quem sabe, entender melhor sobre o que estou falando.'
 		],
+		postUnlockDialogue: [
+			'Agora você tem o pigmento amarelo. Recupere os pigmentos que faltam e resgate-me, por favor. Esperarei por você.'
+		],
 		quizAfter: 'yellow'
 	},
 	[DUNGEON_LEVEL.FOUR]: {
@@ -193,6 +197,15 @@ const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
 			'Na verdade, nunca fui bom nisso. E você?',
 			'Você é forte! Consegue empurrar os blocos, basta ficar na posição que deseja empurrá-los e fazer uma forcinha!',
 			'Cuidado para não bloqueá-los e deixar de um jeito impossível de reverter, senão ficaremos presos aqui para sempre!'
+		],
+		postUnlockDialogue: [
+			'Não acredito! Você conseguiu! Que demais! Você nos salvou!',
+			'Uhuuul!',
+			'Irraaa!',
+			'Você arrasou!',
+			'Estamos livres!',
+			'As cores voltaram! Viva!',
+			'Viva!'
 		],
 		quizAfter: null
 	}

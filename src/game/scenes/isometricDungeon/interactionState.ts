@@ -65,6 +65,10 @@ export function resolveDungeonInteractionAction(
 	}
 
 	if (state === 'level-three-yellow-unlocked') {
+		if (nearNpc) {
+			return 'start-npc-dialogue';
+		}
+
 		if (nearExit) {
 			return 'transition-to-fourth';
 		}
@@ -79,6 +83,14 @@ export function resolveDungeonInteractionAction(
 		if (nearExit) {
 			return allButtonsPressed ? 'complete-fourth-level' : 'emit-gate-locked';
 		}
+		return 'activate-nearby-interactable';
+	}
+
+	if (state === 'complete') {
+		if (nearNpc) {
+			return 'start-npc-dialogue';
+		}
+
 		return 'activate-nearby-interactable';
 	}
 
