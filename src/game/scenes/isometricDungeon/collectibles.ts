@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { CollectibleItem } from '../../shared/types/collectibles';
+import type { CollectibleItem } from '../../../shared/types/collectibles';
 import type { Vec2 } from './types';
 import { TILE_HEIGHT } from './constants';
 
@@ -36,8 +36,7 @@ export function spawnCollectibles(
 			{
 				fontFamily: "'Reddit Sans Condensed', Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
 				fontSize: '12px',
-				fontStyle: 'normal',
-				fontWeight: 'bold',
+				fontStyle: 'bold',
 				color: '#fff',
 				align: 'center',
 				backgroundColor: '#2a2a2a',
