@@ -15,22 +15,6 @@ export type AppEventMap = {
 	'world:color-filter-state-changed': {
 		mode: WorldColorFilterMode;
 	};
-	'dungeon:hud-state-changed': {
-		level: 1 | 2 | 3 | 4;
-		status: string;
-		hint: string;
-		objective: string;
-		canInteract: boolean;
-		state:
-			| 'level-one-hunt-blue'
-			| 'level-one-blue-unlocked'
-			| 'level-two-hunt-red'
-			| 'level-two-red-unlocked'
-			| 'level-three-hunt-yellow'
-			| 'level-three-yellow-unlocked'
-			| 'level-four-button-puzzle'
-			| 'complete';
-	};
 	'dungeon:dialogue-requested': {
 		npcName: string;
 		dialogueLines: string[];

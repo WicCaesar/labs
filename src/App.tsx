@@ -15,22 +15,6 @@ import { ThemeTextDrawer } from './ui/components/ThemeTextDrawer';
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
-	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3 | 4,
-		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
-		hint: 'Controles: WASD/Setas + ESPAÇO para interagir',
-		objective: 'Desbloquear azul.',
-		canInteract: false,
-		state: 'level-one-hunt-blue' as
-			| 'level-one-hunt-blue'
-			| 'level-one-blue-unlocked'
-			| 'level-two-hunt-red'
-			| 'level-two-red-unlocked'
-			| 'level-three-hunt-yellow'
-			| 'level-three-yellow-unlocked'
-			| 'level-four-button-puzzle'
-			| 'complete'
-	});
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
 	const [dialogueState, setDialogueState] = useState<{
 		isActive: boolean;
@@ -153,10 +137,6 @@ export const App = () => {
 			setWorldFilterMode(mode);
 		});
 
-		const unsubscribeHud = EventBus.on('dungeon:hud-state-changed', (hudState) => {
-			setDungeonHud(hudState);
-		});
-
 		let clearNoticeTimer = 0;
 		const unsubscribeInteractable = EventBus.on('dungeon:interactable-activated', ({ message, durationMs }) => {
 			setDungeonInteractableNotice(message);
@@ -186,7 +166,6 @@ export const App = () => {
 
 		return () => {
 			unsubscribeWorld();
-			unsubscribeHud();
 			unsubscribeInteractable();
 			unsubscribeDialogue();
 		};
@@ -375,14 +354,6 @@ export const App = () => {
 				{worldFilterDefs}
 				<main className={`dungeon-layout ${worldFilterClass}`.trim()} aria-label="Isometric Dungeon">
 					<div id="game-container" className="phaser-host is-visible" />
-					<section className="dungeon-hud" aria-live="polite">
-						<p className="dungeon-hud-level">Level {dungeonHud.level}</p>
-						<p className="dungeon-hud-status">{dungeonHud.status}</p>
-						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
-						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
-						<p className="dungeon-hud-controls">WASD/Arrows to move. SPACE to interact.</p>
-						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interação disponível</span> : null}
-					</section>
 					{dungeonInteractableNotice ? (
 						<aside className="dungeon-interactable-toast" aria-live="assertive">
 							{dungeonInteractableNotice}

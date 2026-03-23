@@ -25,15 +25,6 @@ export type DungeonState =
 	| 'level-four-button-puzzle'
 	| 'complete';
 
-export type DungeonHudState = {
-	level: DungeonLevelId;
-	status: string;
-	hint: string;
-	objective: string;
-	canInteract: boolean;
-	state: DungeonState;
-};
-
 export type DungeonNpcRole = 'friendly' | 'enemy';
 
 export type DungeonFriendlyNpcBehavior =

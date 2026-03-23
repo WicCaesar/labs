@@ -14,7 +14,6 @@ import {
 import {
 	createLevelConfig,
 	DUNGEON_LEVEL,
-	type DungeonHudState,
 	type DungeonInteractableMarker,
 	type DungeonLevelConfig,
 	type DungeonLevelId,
@@ -26,7 +25,6 @@ import type { Vec2 } from './isometricDungeon/types';
 import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement, damageEnemy } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
 import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
-import { buildDungeonHudState } from './isometricDungeon/hudState';
 import { resolveDungeonInteractionAction } from './isometricDungeon/interactionState';
 import { findNearestEnemy, isEnemyInRange } from './isometricDungeon/combatSystem';
 import {
@@ -106,8 +104,6 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private activeDungeonQuizId: 'blue' | 'yellow' | null = null;
 
-	private lastYellowQuizCorrectAnswers = 0;
-
 	private readonly blueQuizQuestionCount = 3;
 
 	private readonly yellowQuizQuestionCount = 3;
@@ -169,21 +165,12 @@ export class IsometricDungeon extends Phaser.Scene {
 			})
 		);
 		this.emitWorldColorFilterState();
-		this.publishHudState();
 
 		this.scale.on('resize', this.handleResize, this);
 		this.events.once('shutdown', () => {
 			this.stopExitSparkleLoop();
 			this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
 			this.unsubscribeHandlers.length = 0;
-			this.emitHudState({
-				level: 1,
-				state: 'complete',
-				status: '',
-				hint: '',
-				objective: '',
-				canInteract: false
-			});
 			EventBus.emit('world:color-filter-state-changed', { mode: 'none' });
 			this.scale.off('resize', this.handleResize, this);
 		});
@@ -191,7 +178,6 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	update(_: number, delta: number) {
 		if (this.isDungeonQuizActive) {
-			this.publishHudState();
 			return;
 		}
 
@@ -228,8 +214,6 @@ export class IsometricDungeon extends Phaser.Scene {
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
 		}
-
-		this.publishHudState();
 	}
 
 	private loadLevel(levelId: DungeonLevelId, isInitialLoad = false) {
@@ -446,7 +430,6 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.isDungeonQuizActive = true;
 		this.activeDungeonQuizId = 'yellow';
-		this.lastYellowQuizCorrectAnswers = 0;
 		EventBus.emit('dungeon:quiz-requested', {
 			quizId: 'yellow',
 			segment: 2,
@@ -454,7 +437,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		});
 	}
 
-	private handleDungeonQuizFinished(quizId: 'blue' | 'yellow', passed: boolean, correctAnswers: number) {
+	private handleDungeonQuizFinished(quizId: 'blue' | 'yellow', passed: boolean, _correctAnswers: number) {
 		if (!this.isDungeonQuizActive || this.activeDungeonQuizId !== quizId) {
 			return;
 		}
@@ -480,7 +463,6 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
-		this.lastYellowQuizCorrectAnswers = correctAnswers;
 		if (passed) {
 			this.unlockYellowChannel();
 			return;
@@ -821,12 +803,6 @@ export class IsometricDungeon extends Phaser.Scene {
 		return true;
 	}
 
-	private isFacingPushableBlock(): boolean {
-		const playerTile = this.getRoundedPlayerTile();
-		const pushDelta = getPushDeltaFromFacing(this.player.facing);
-		return findPushBlockAtTile(this.pushBlocks, playerTile.x + pushDelta.x, playerTile.y + pushDelta.y) !== null;
-	}
-
 	private ensureWalkable(tile: Vec2): Vec2 {
 		if (isWalkable(this.map, tile.x, tile.y, this.mapWidth, this.mapHeight)) {
 			return tile;
@@ -1163,36 +1139,6 @@ export class IsometricDungeon extends Phaser.Scene {
 			}
 		}
 		return false;
-	}
-
-	private publishHudState() {
-		const nearNpc = this.isPlayerNearNpc();
-		const nearExit = this.isNearLevelExit();
-		const nearInteractable = this.getNearestInteractable() !== null;
-		const canPushFacingBlock = this.isFacingPushableBlock();
-
-		const hudState = buildDungeonHudState({
-			state: this.state,
-			currentLevel: this.currentLevel,
-			isDungeonQuizActive: this.isDungeonQuizActive,
-			activeDungeonQuizId: this.activeDungeonQuizId,
-			lastYellowQuizCorrectAnswers: this.lastYellowQuizCorrectAnswers,
-			blueUnlocked: this.blueUnlocked,
-			redUnlocked: this.redUnlocked,
-			nearNpc,
-			nearExit,
-			nearInteractable,
-			canPushFacingBlock,
-			areAllButtonsPressed: this.areAllButtonsPressed(),
-			buttonCount: this.getButtonMarkers().length,
-			pressedCount: this.pressedButtonKeys.size
-		});
-
-		this.emitHudState(hudState);
-	}
-
-	private emitHudState(payload: DungeonHudState) {
-		EventBus.emit('dungeon:hud-state-changed', payload);
 	}
 
 	private isoToWorld(isoX: number, isoY: number): Vec2 {
