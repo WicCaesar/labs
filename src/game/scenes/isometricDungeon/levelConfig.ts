@@ -54,6 +54,9 @@ export type DungeonNpcBehavior = DungeonFriendlyNpcBehavior | DungeonEnemyNpcBeh
 export type DungeonNpcDialogue = {
 	name: string;
 	dialogue: string[];
+	alternateDialogues?: string[][];
+	interactionMode?: 'always-repeat' | 'alternate-after-first' | 'once' | 'once-then-quiz';
+	startQuizAfterDialogue?: boolean;
 	portraitAsset?: string;
 	quizAfter?: 'blue' | 'yellow' | null;
 };
@@ -130,7 +133,7 @@ const NPC_BEHAVIOR_OVERRIDES: Partial<Record<DungeonLevelId, DungeonNpcBehavior>
 	},
 	[DUNGEON_LEVEL.FOUR]: {
 		kind: 'friendly-stationary-fixed',
-		facing: 'west'
+		facing: 'south'
 	}
 };
 
@@ -138,6 +141,8 @@ const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
 	[DUNGEON_LEVEL.ONE]: {
 		name: 'Jarbas',
 		portraitAsset: 'real-penguin-placeholder',
+		interactionMode: 'alternate-after-first',
+		startQuizAfterDialogue: false,
 		dialogue: [
 			'Quase me assustou, mas vi você se aproximando.',
 			'Já nos vimos antes? Não reconheço seu rosto. Mas também, nós pinguins somos todos iguais.',
@@ -147,7 +152,47 @@ const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
 			'Vai ter de provar sua inteligência e habilidade de resolver enigmas.',
 			'E o pior, outros pinguins querendo te derrubar. E, como disse, somos todos iguais…',
 			'Você nunca vai saber se alguém vai tentar te ajudar ou te eliminar. Só se tiver um sexto sentido para perceber essas coisas…',
-			'Enfim, falei demais. Boa sorte!'
+			'Enfim, falei demais. É melhor eu não contar como acabar com os pinguins brigões. Boa sorte!'
+		],
+		alternateDialogues: [[
+			'Você veio atrás de briga, não é?',
+			'Quer mesmo saber como acabar com os pinguins brigões?',
+			'É só chegar perto o bastante e seu instinto natural vai atirar bolas de neve neles! Acerte o bastante para derrotá-los.',
+			'Mas se chegar muito perto e eles encostarem em você, já era!',
+			'Ai, me tremo todo só de pensar!'
+		]],
+		quizAfter: null
+	},
+	[DUNGEON_LEVEL.THREE]: {
+		name: 'Mirela',
+		portraitAsset: 'real-penguin-placeholder',
+		interactionMode: 'once-then-quiz',
+		startQuizAfterDialogue: true,
+		dialogue: [
+			'Você está tentando resgatar as cores? Eu posso te ajudar, mas estou presa aqui.',
+			'Eu também vim para a torre tentando salvar as cores e o mundo, mas só consegui o pigmento amarelo, e estou congelada aqui há tanto tempo que perdi as contas.',
+			'Se eu te der o pigmento amarelo, você volta para me resgatar?',
+			'Não sei se posso confiar em você. Se você responder a três perguntas corretamente, ficarei menos desconfiada e vou te entregar o pigmento amarelo.',
+			'Se for muito difícil, você pode coletar as palavras espalhadas para completar o texto e, quem sabe, entender melhor sobre o que estou falando.'
+		],
+		quizAfter: 'yellow'
+	},
+	[DUNGEON_LEVEL.FOUR]: {
+		name: 'Lerdilson',
+		portraitAsset: 'real-penguin-placeholder',
+		interactionMode: 'always-repeat',
+		startQuizAfterDialogue: false,
+		dialogue: [
+			'Ai! Não me jogue pelo buraco, por favor!',
+			'Ou jogue-me, não sei se prefiro ficar preso aqui ou encarar outros perigos.',
+			'Ah, você não vai me fazer mal?',
+			'Puxa, fico contente. Me jogaram pelo buraco e eu estou preso aqui desde então.',
+			'Em cada canto desse andar tem um botão. Não sei se você vai conseguir ver, mas confie em mim, estou aqui há muito tempo!',
+			'Alguns blocos são móveis, quatro deles! Quatro botões, quatro blocos que consigo empurrar. Acho que tem alguma conexão.',
+			'Tentei empurrá-los para cima dos botões nos cantos, mas minha cabeça não está muito boa, não consigo raciocinar direito.',
+			'Na verdade, nunca fui bom nisso. E você?',
+			'Você é forte! Consegue empurrar os blocos, basta ficar na posição que deseja empurrá-los e fazer uma forcinha!',
+			'Cuidado para não bloqueá-los e deixar de um jeito impossível de reverter, senão ficaremos presos aqui para sempre!'
 		],
 		quizAfter: null
 	}

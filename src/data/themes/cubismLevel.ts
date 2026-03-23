@@ -12,50 +12,34 @@ Os [PLACEHOLDER_4] se sobrepõem, criando diferentes camadas de significado visu
 export const CUBISM_KEYWORDS = [
 	{
 		id: 'formas',
-		text: 'FORMAS',
-		originalCase: 'formas',
-		description: 'Geometric shapes and forms'
+		originalCase: 'formas'
 	},
 	{
 		id: 'perspectivas',
-		text: 'PERSPECTIVAS',
-		originalCase: 'perspectivas',
-		description: 'Multiple viewpoints'
+		originalCase: 'perspectivas'
 	},
 	{
 		id: 'angulos',
-		text: 'ÂNGULOS',
-		originalCase: 'ângulos',
-		description: 'Angles and viewpoints'
+		originalCase: 'ângulos'
 	},
 	{
 		id: 'estrutura',
-		text: 'ESTRUTURA',
-		originalCase: 'estrutura',
-		description: 'Structure and composition'
+		originalCase: 'estrutura'
 	},
 	{
 		id: 'planos',
-		text: 'PLANOS',
-		originalCase: 'planos',
-		description: 'Planes and layers'
+		originalCase: 'planos'
 	},
 	{
 		id: 'fragmentos',
-		text: 'FRAGMENTOS',
-		originalCase: 'fragmentos',
-		description: 'Fragments and pieces'
+		originalCase: 'fragmentos'
 	},
 	{
 		id: 'facetas',
-		text: 'FACETAS',
-		originalCase: 'facetas',
-		description: 'Facets and aspects'
+		originalCase: 'facetas'
 	},
 	{
 		id: 'geometria',
-		text: 'GEOMETRIA',
-		originalCase: 'geometria',
-		description: 'Geometry'
+		originalCase: 'geometria'
 	}
 ];

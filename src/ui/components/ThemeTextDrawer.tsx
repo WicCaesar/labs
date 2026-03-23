@@ -71,10 +71,15 @@ export const ThemeTextDrawer: React.FC = () => {
 			setIsOpen(false);
 		});
 
+		const unsubscribeQuizRequested = EventBus.on('dungeon:quiz-requested', () => {
+			setIsOpen(false);
+		});
+
 		return () => {
 			unsubscribeSpawned();
 			unsubscribePickedUp();
 			unsubscribeCleared();
+			unsubscribeQuizRequested();
 		};
 	}, []);
 
@@ -130,7 +135,7 @@ export const ThemeTextDrawer: React.FC = () => {
 					}}
 				/>
 				<span className={styles.progressText}>
-					{theme.collectedCount} of {theme.totalCount} keywords
+					{theme.collectedCount}/{theme.totalCount} palavras coletadas
 				</span>
 			</div>
 

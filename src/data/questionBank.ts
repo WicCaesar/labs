@@ -339,6 +339,30 @@ export const questionBank: QuizQuestionRecord[] = [
 		],
 		tags: ['cubismo', 'história']
 	},
+	{
+		id: 'q-029',
+		segment: 1,
+		prizeValue: 4000,
+		category: 'Cubismo',
+		difficulty: 'easy',
+		prompt: {
+			kind: 'image',
+			value: 'https://en.wikipedia.org/wiki/Special:FilePath/PicassoGuernica.jpg',
+			alt: 'Composição ampla em preto, branco e cinza, com figuras humanas e animais em formas angulosas.',
+			credit: 'Wikimedia/Wikipedia - Reprodução para fins educacionais.'
+		},
+		promptText: 'Que artista criou essa obra de arte cubista?',
+		options: [
+			'Pablo Picasso',
+			'Georges Braque',
+			'Salvador Dalí'
+		],
+		hints: [
+			'É um artista espanhol com papel central no desenvolvimento do Cubismo.',
+			'Também ficou conhecido por fases como a Azul e a Rosa.'
+		],
+		tags: ['cubismo', 'artistas', 'imagem']
+	},
 
 	// ── Segmento 2 — Cubismo (fácil a intermediário baixo) ────────────────────
 
@@ -429,6 +453,67 @@ export const questionBank: QuizQuestionRecord[] = [
 			'É a cidade de Montmartre e dos grandes ateliês de vanguarda.'
 		],
 		tags: ['cubismo', 'história', 'geografia']
+	},
+	{
+		id: 'q-030',
+		segment: 2,
+		prizeValue: 40000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'image',
+			value: 'https://en.wikipedia.org/wiki/Special:FilePath/Les_Demoiselles_d%27Avignon.jpg',
+			alt: 'Pintura com cinco figuras femininas em composição fragmentada e linhas angulosas.',
+			credit: 'Wikimedia/Wikipedia - Reprodução para fins educacionais.'
+		},
+		promptText: 'Como se chama essa obra de arte cubista?',
+		options: [
+			'Les Demoiselles d\'Avignon',
+			'Guernica',
+			'O Grito',
+			'A Noite Estrelada'
+		],
+		hints: [
+			'É uma obra do início do século XX associada ao nascimento do Cubismo.',
+			'O título original está em francês e é amplamente estudado na história da arte.'
+		],
+		tags: ['cubismo', 'obras', 'imagem']
+	},
+	{
+		id: 'q-031',
+		segment: 2,
+		prizeValue: 50000,
+		category: 'Cubismo',
+		difficulty: 'medium',
+		prompt: {
+			kind: 'text',
+			value: 'Qual dessas pinturas cubistas é obra de Pablo Picasso?'
+		},
+		options: [
+			{
+				kind: 'image',
+				value: 'https://en.wikipedia.org/wiki/Special:FilePath/PicassoGuernica.jpg',
+				alt: 'Pintura em preto, branco e cinza com cena dramática e figuras sobrepostas.',
+				credit: 'Wikimedia/Wikipedia - Reprodução para fins educacionais.'
+			},
+			{
+				kind: 'image',
+				value: 'https://commons.wikimedia.org/wiki/Special:FilePath/Juan_Gris_-_Le_jardin_(The_Garden)_1916.jpg',
+				alt: 'Pintura cubista com áreas planas coloridas e elementos de paisagem simplificados.',
+				credit: 'Wikimedia/Wikipedia - Reprodução para fins educacionais.'
+			},
+			{
+				kind: 'image',
+				value: 'https://commons.wikimedia.org/wiki/Special:FilePath/Le_Monogramme_by_Mar%C3%ADa_Blanchard_,_1916.jpg',
+				alt: 'Composição cubista vertical com objetos fragmentados e contraste entre tons claros e escuros.',
+				credit: 'Wikimedia/Wikipedia - Reprodução para fins educacionais.'
+			}
+		],
+		hints: [
+			'A alternativa correta é uma obra monumental do Cubismo em linguagem dramática.',
+			'Compare paleta de cores e intensidade da composição para identificar a opção mais conhecida.'
+		],
+		tags: ['cubismo', 'picasso', 'imagem-opções']
 	},
 
 	// ── Segmento 3 — Cubismo (fácil a intermediário baixo) ────────────────────

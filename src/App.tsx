@@ -16,6 +16,15 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
+	const [finalCelebration, setFinalCelebration] = useState<{
+		isActive: boolean;
+		headline: string;
+		subheadline: string;
+	}>({
+		isActive: false,
+		headline: '',
+		subheadline: ''
+	});
 	const [dialogueState, setDialogueState] = useState<{
 		isActive: boolean;
 		npcName: string;
@@ -138,6 +147,7 @@ export const App = () => {
 		});
 
 		let clearNoticeTimer = 0;
+		let clearCelebrationTimer = 0;
 		const unsubscribeInteractable = EventBus.on('dungeon:interactable-activated', ({ message, durationMs }) => {
 			setDungeonInteractableNotice(message);
 			if (clearNoticeTimer > 0) {
@@ -146,6 +156,26 @@ export const App = () => {
 
 			clearNoticeTimer = window.setTimeout(() => {
 				setDungeonInteractableNotice(null);
+			}, durationMs);
+		});
+
+		const unsubscribeCelebration = EventBus.on('dungeon:final-celebration-requested', ({ durationMs, headline, subheadline }) => {
+			setFinalCelebration({
+				isActive: true,
+				headline,
+				subheadline
+			});
+
+			if (clearCelebrationTimer > 0) {
+				window.clearTimeout(clearCelebrationTimer);
+			}
+
+			clearCelebrationTimer = window.setTimeout(() => {
+				setFinalCelebration({
+					isActive: false,
+					headline: '',
+					subheadline: ''
+				});
 			}, durationMs);
 		});
 
@@ -167,7 +197,11 @@ export const App = () => {
 		return () => {
 			unsubscribeWorld();
 			unsubscribeInteractable();
+			unsubscribeCelebration();
 			unsubscribeDialogue();
+			if (clearCelebrationTimer > 0) {
+				window.clearTimeout(clearCelebrationTimer);
+			}
 		};
 	}, [isDungeonMode]);
 
@@ -360,22 +394,41 @@ export const App = () => {
 						</aside>
 					) : null}
 
+					{finalCelebration.isActive ? (
+						<section className="dungeon-final-celebration" role="status" aria-live="assertive" aria-label="Celebração final">
+							<div className="dungeon-final-celebration-surface">
+								<h2>{finalCelebration.headline}</h2>
+								<p>{finalCelebration.subheadline}</p>
+								<div className="dungeon-final-celebration-stripes" aria-hidden="true">
+									<span />
+									<span />
+									<span />
+									<span />
+									<span />
+									<span />
+								</div>
+							</div>
+						</section>
+					) : null}
+
 				{dialogueState.isActive ? (
 					<DialogueBox
 						npcName={dialogueState.npcName}
 						dialogueLines={dialogueState.dialogueLines}
 						portraitAsset={dialogueState.portraitAsset}
 						onComplete={() => {
+							const quizId = dialogueState.onCompleteQuizId ?? undefined;
+							const shouldStartQuiz = Boolean(quizId);
+
 							setDialogueState({ 
 								...dialogueState, 
 								isActive: false 
 							});
-							if (dialogueState.onCompleteQuizId) {
-								EventBus.emit('dungeon:dialogue-finished', {
-									shouldStartQuiz: true,
-									quizId: dialogueState.onCompleteQuizId
-								});
-							}
+
+							EventBus.emit('dungeon:dialogue-finished', {
+								shouldStartQuiz,
+								quizId
+							});
 						}}
 					/>
 				) : null}

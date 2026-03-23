@@ -46,6 +46,11 @@ export type AppEventMap = {
 		message: string;
 		durationMs: number;
 	};
+	'dungeon:final-celebration-requested': {
+		durationMs: number;
+		headline: string;
+		subheadline: string;
+	};
 	'ui:request-next-question': {
 		reason: 'manual' | 'auto';
 	};

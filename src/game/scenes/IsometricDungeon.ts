@@ -104,11 +104,17 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private activeDungeonQuizId: 'blue' | 'yellow' | null = null;
 
-	private readonly blueQuizQuestionCount = 3;
-
 	private readonly yellowQuizQuestionCount = 3;
 
 	private readonly unsubscribeHandlers: Array<() => void> = [];
+
+	private readonly npcDialogueInteractionCountByLevel = new Map<DungeonLevelId, number>();
+
+	private isNpcDialogueActive = false;
+
+	private npcDialogueCooldownUntil = 0;
+
+	private readonly npcDialogueCooldownMs = 250;
 
 	private snowballs: SnowballProjectile[] = [];
 
@@ -159,8 +165,11 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.handleDungeonQuizCancelled(quizId);
 			}),
 			EventBus.on('dungeon:dialogue-finished', ({ shouldStartQuiz, quizId }) => {
-				if (shouldStartQuiz && quizId === 'blue') {
-					this.startBlueUnlockQuiz();
+				this.isNpcDialogueActive = false;
+				this.npcDialogueCooldownUntil = this.time.now + this.npcDialogueCooldownMs;
+
+				if (shouldStartQuiz) {
+					this.startConfiguredNpcQuiz(quizId ?? null);
 				}
 			})
 		);
@@ -329,6 +338,10 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private handleInteraction() {
+		if (this.isNpcDialogueActive || this.time.now < this.npcDialogueCooldownUntil) {
+			return;
+		}
+
 		if (this.tryPushBlockInFacingDirection()) {
 			return;
 		}
@@ -351,7 +364,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			case 'transition-to-fourth':
 				this.transitionToFourthLevel();
 				return;
-			case 'start-level-one-dialogue':
+			case 'start-npc-dialogue':
 				this.startNpcDialogue();
 				return;
 			case 'kill-enemy-unlock-red':
@@ -401,26 +414,50 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
-		EventBus.emit('dungeon:dialogue-requested', {
-			npcName: level.npcDialogue.name,
-			dialogueLines: level.npcDialogue.dialogue,
-			portraitAsset: level.npcDialogue.portraitAsset,
-			onCompleteQuizId: level.npcDialogue.quizAfter ?? null
-		});
-	}
+		const interactionCount = this.npcDialogueInteractionCountByLevel.get(this.currentLevel) ?? 0;
+		const interactionMode = level.npcDialogue.interactionMode
+			?? (level.npcDialogue.alternateDialogues && level.npcDialogue.alternateDialogues.length > 0
+				? 'alternate-after-first'
+				: 'always-repeat');
 
-	private startBlueUnlockQuiz() {
-		if (this.blueUnlocked || this.isDungeonQuizActive || this.currentLevel !== DUNGEON_LEVEL.ONE || this.npcs.length === 0) {
+		if (interactionMode === 'once' && interactionCount > 0) {
 			return;
 		}
 
-		this.isDungeonQuizActive = true;
-		this.activeDungeonQuizId = 'blue';
-		EventBus.emit('dungeon:quiz-requested', {
-			quizId: 'blue',
-			segment: 1,
-			questionCount: this.blueQuizQuestionCount
+		if (interactionMode === 'once-then-quiz' && interactionCount > 0) {
+			this.startConfiguredNpcQuiz(level.npcDialogue.quizAfter ?? null);
+			return;
+		}
+
+		let dialogueLines = level.npcDialogue.dialogue;
+		if (interactionMode === 'alternate-after-first') {
+			const dialogueVariants = [level.npcDialogue.dialogue, ...(level.npcDialogue.alternateDialogues ?? [])];
+			const dialogueIndex = dialogueVariants.length > 1
+				? interactionCount % dialogueVariants.length
+				: 0;
+			dialogueLines = dialogueVariants[dialogueIndex] ?? level.npcDialogue.dialogue;
+		}
+
+		this.isNpcDialogueActive = true;
+		this.npcDialogueInteractionCountByLevel.set(this.currentLevel, interactionCount + 1);
+		const onCompleteQuizId = level.npcDialogue.startQuizAfterDialogue
+			? (level.npcDialogue.quizAfter ?? null)
+			: null;
+
+		EventBus.emit('dungeon:dialogue-requested', {
+			npcName: level.npcDialogue.name,
+			dialogueLines,
+			portraitAsset: level.npcDialogue.portraitAsset,
+			onCompleteQuizId
 		});
+	}
+
+	private startConfiguredNpcQuiz(quizId: 'blue' | 'yellow' | null) {
+		if (!quizId || quizId !== 'yellow') {
+			return;
+		}
+
+		this.startYellowUnlockQuiz();
 	}
 
 	private startYellowUnlockQuiz() {
@@ -445,17 +482,7 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.isDungeonQuizActive = false;
 		this.activeDungeonQuizId = null;
 
-		if (quizId === 'blue') {
-			if (this.currentLevel !== DUNGEON_LEVEL.ONE || this.blueUnlocked) {
-				return;
-			}
-
-			if (passed) {
-				this.unlockBlueChannel();
-				return;
-			}
-
-			this.cameras.main.shake(130, 0.006);
+		if (quizId !== 'yellow') {
 			return;
 		}
 
@@ -555,12 +582,18 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.state = 'complete';
 		this.cameras.main.flash(420, 255, 220, 120);
+		this.cameras.main.shake(260, 0.004);
 		EventBus.emit('dungeon:interactable-activated', {
 			level: this.currentLevel,
 			type: 'button',
 			position: { ...this.levels[this.currentLevel].exitTile! },
 			message: 'All buttons activated. The dungeon challenge is complete.',
 			durationMs: 2200
+		});
+		EventBus.emit('dungeon:final-celebration-requested', {
+			durationMs: 5200,
+			headline: 'TODAS AS CORES DESBLOQUEADAS!',
+			subheadline: 'O mundo voltou a brilhar. Você concluiu a torre cromática.'
 		});
 		this.updateLevelMarker();
 	}

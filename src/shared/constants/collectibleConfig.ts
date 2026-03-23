@@ -25,14 +25,14 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 		fullText: generateThemeText(CUBISM_FULL_TEXT, CUBISM_KEYWORDS),
 		keywords: CUBISM_KEYWORDS.map(k => ({
 			id: k.id,
-			text: k.text,
+			text: k.originalCase.toUpperCase(),
 			originalCase: k.originalCase
 		})),
 		spawns: [
 			// Upper left area
 			{
 				id: 'collectible-formas',
-				text: CUBISM_KEYWORDS[0].text,
+				text: CUBISM_KEYWORDS[0].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[0].originalCase,
 				keywordIndex: 0,
 				position: { x: 3, y: 1 },
@@ -41,7 +41,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Upper middle
 			{
 				id: 'collectible-perspectivas',
-				text: CUBISM_KEYWORDS[1].text,
+				text: CUBISM_KEYWORDS[1].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[1].originalCase,
 				keywordIndex: 1,
 				position: { x: 13, y: 4 },
@@ -50,7 +50,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Upper right
 			{
 				id: 'collectible-angulos',
-				text: CUBISM_KEYWORDS[2].text,
+				text: CUBISM_KEYWORDS[2].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[2].originalCase,
 				keywordIndex: 2,
 				position: { x: 15, y: 1 },
@@ -59,7 +59,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Middle left
 			{
 				id: 'collectible-estrutura',
-				text: CUBISM_KEYWORDS[3].text,
+				text: CUBISM_KEYWORDS[3].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[3].originalCase,
 				keywordIndex: 3,
 				position: { x: 8, y: 5 },
@@ -68,7 +68,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Middle center
 			{
 				id: 'collectible-planos',
-				text: CUBISM_KEYWORDS[4].text,
+				text: CUBISM_KEYWORDS[4].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[4].originalCase,
 				keywordIndex: 4,
 				position: { x: 16, y: 5 },
@@ -77,7 +77,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Middle right
 			{
 				id: 'collectible-fragmentos',
-				text: CUBISM_KEYWORDS[5].text,
+				text: CUBISM_KEYWORDS[5].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[5].originalCase,
 				keywordIndex: 5,
 				position: { x: 5, y: 9 },
@@ -86,7 +86,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Lower left
 			{
 				id: 'collectible-facetas',
-				text: CUBISM_KEYWORDS[6].text,
+				text: CUBISM_KEYWORDS[6].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[6].originalCase,
 				keywordIndex: 6,
 				position: { x: 9, y: 11 },
@@ -95,7 +95,7 @@ export const COLLECTIBLE_CONFIGS: Record<DungeonLevelId, LevelCollectibleConfig 
 			// Lower right
 			{
 				id: 'collectible-geometria',
-				text: CUBISM_KEYWORDS[7].text,
+				text: CUBISM_KEYWORDS[7].originalCase.toUpperCase(),
 				originalCase: CUBISM_KEYWORDS[7].originalCase,
 				keywordIndex: 7,
 				position: { x: 15, y: 11 },

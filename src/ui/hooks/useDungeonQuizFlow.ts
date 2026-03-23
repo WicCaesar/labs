@@ -91,16 +91,31 @@ const buildDungeonQuizQuestions = (questionCount: number, segment: Segment): Dun
 	const safeCount = Math.max(1, Math.min(questionCount, source.length));
 	return shuffled(source)
 		.slice(0, safeCount)
-		.map((entry) => ({
-			id: entry.id,
-			category: entry.category,
-			segment: entry.segment,
-			prompt: entry.prompt,
-			promptText: entry.promptText,
-			hints: entry.hints,
-			options: shuffled(getNormalizedOptions(entry)),
-			correctOptionId: getCorrectOptionId(entry)
-		}));
+		.map((entry) => mapEntryToDungeonQuizQuestion(entry));
+};
+
+const mapEntryToDungeonQuizQuestion = (entry: (typeof questionBank)[number]): DungeonQuizQuestion => ({
+	id: entry.id,
+	category: entry.category,
+	segment: entry.segment,
+	prompt: entry.prompt,
+	promptText: entry.promptText,
+	hints: entry.hints,
+	options: shuffled(getNormalizedOptions(entry)),
+	correctOptionId: getCorrectOptionId(entry)
+});
+
+const pickReplacementDungeonQuizQuestion = (
+	segment: Segment,
+	usedQuestionIds: Set<string>
+): DungeonQuizQuestion => {
+	const segmentQuestions = questionBank.filter((entry) => entry.segment === segment);
+	const source = segmentQuestions.length > 0 ? segmentQuestions : questionBank;
+
+	const freshCandidates = shuffled(source).filter((entry) => !usedQuestionIds.has(entry.id));
+	const replacement = freshCandidates[0] ?? shuffled(source)[0] ?? questionBank[0];
+
+	return mapEntryToDungeonQuizQuestion(replacement);
 };
 
 export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
@@ -207,24 +222,17 @@ export const useDungeonQuizFlow = (isDungeonMode: boolean) => {
 				return prev;
 			}
 
-			const nextIndex = prev.currentQuestionIndex + 1;
-			if (nextIndex < prev.questions.length) {
-				return {
-					...prev,
-					skipsRemaining: prev.skipsRemaining - 1,
-					currentQuestionIndex: nextIndex,
-					...createDungeonQuizRoundState('Pergunta pulada. Essa questao nao conta como acerto.')
-				};
-			}
+			const usedQuestionIds = new Set(prev.questions.map((question) => question.id));
+			const replacementQuestion = pickReplacementDungeonQuizQuestion(prev.segment, usedQuestionIds);
+			const nextQuestions = [...prev.questions];
+			nextQuestions[prev.currentQuestionIndex] = replacementQuestion;
 
-			EventBus.emit('ui:dungeon-quiz-finished', {
-				quizId: prev.quizId,
-				passed: false,
-				correctAnswers: prev.correctAnswers,
-				totalQuestions: prev.questionCount
-			});
-
-			return createInitialDungeonQuizState();
+			return {
+				...prev,
+				skipsRemaining: prev.skipsRemaining - 1,
+				questions: nextQuestions,
+				...createDungeonQuizRoundState('Pergunta pulada. Voce ainda precisa acertar 3 respostas.')
+			};
 		});
 	}, []);
 

@@ -41,7 +41,7 @@ export class MainScreen extends Phaser.Scene {
 			this.scene.start(SCENE_KEYS.RANK_SCREEN);
 		});
 
-		const controlsText = this.add.text(centerX, this.scale.height - 60, 'WASD / Setas para mover  |  E para interagir', {
+		const controlsText = this.add.text(centerX, this.scale.height - 60, 'WASD / Setas para mover  |  BARRA DE ESPAÇO para interagir', {
 			fontSize: '16px',
 			color: '#606060',
 			fontFamily: 'Arial, sans-serif'

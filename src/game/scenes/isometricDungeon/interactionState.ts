@@ -4,7 +4,7 @@ export type DungeonInteractionAction =
 	| 'transition-to-second'
 	| 'transition-to-third'
 	| 'transition-to-fourth'
-	| 'start-level-one-dialogue'
+	| 'start-npc-dialogue'
 	| 'kill-enemy-unlock-red'
 	| 'start-yellow-quiz'
 	| 'complete-fourth-level'
@@ -31,7 +31,7 @@ export function resolveDungeonInteractionAction(
 			return 'transition-to-second';
 		}
 		if (nearNpc) {
-			return 'start-level-one-dialogue';
+			return 'start-npc-dialogue';
 		}
 		return 'activate-nearby-interactable';
 	}
@@ -59,7 +59,7 @@ export function resolveDungeonInteractionAction(
 
 	if (state === 'level-three-hunt-yellow') {
 		if (nearNpc) {
-			return 'start-yellow-quiz';
+			return 'start-npc-dialogue';
 		}
 		return 'activate-nearby-interactable';
 	}
@@ -72,6 +72,10 @@ export function resolveDungeonInteractionAction(
 	}
 
 	if (state === 'level-four-button-puzzle') {
+		if (nearNpc) {
+			return 'start-npc-dialogue';
+		}
+
 		if (nearExit) {
 			return allButtonsPressed ? 'complete-fourth-level' : 'emit-gate-locked';
 		}

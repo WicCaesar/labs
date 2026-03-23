@@ -12,20 +12,6 @@
 #   b = push block (step)
 #   s = push block (slide)
 
-# Dungeon Level Two (16x16)
-# Legend:
-#   (space) = walkable floor
-#   0 = walkable floor
-#   X = blocked wall/obstacle
-#   P = player spawn
-#   N = friendly NPC spawn
-#   E = enemy NPC spawn
-#   S = staircase/exit tile
-#   i = interactable marker
-#   _ = floor button marker
-#   b = push block (step)
-#   s = push block (slide)
-
 XXXXXXXXXXXXXXXX
 X              X
 X        X   E X

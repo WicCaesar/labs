@@ -13,7 +13,7 @@
 #   s = push block (slide)
 
 XXXXXXXXXXXXXXXX
-X_    X  XX   _X
+X_    XN XX   _X
 X        X  P  X
 X  XXX b       X
 X  XXX    X  X X

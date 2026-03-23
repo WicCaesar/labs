@@ -35,12 +35,12 @@ export function spawnCollectibles(
 			collectible.text,
 			{
 				fontFamily: "'Reddit Sans Condensed', Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
-				fontSize: '12px',
+				fontSize: '11px',
 				fontStyle: 'bold',
 				color: '#fff',
 				align: 'center',
 				backgroundColor: '#2a2a2a',
-				padding: { x: 6, y: 3 },
+				padding: { x: 5, y: 2 },
 				stroke: '#4495ff',
 				strokeThickness: 2
 			}
