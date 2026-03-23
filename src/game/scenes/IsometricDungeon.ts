@@ -99,8 +99,6 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private readonly unsubscribeHandlers: Array<() => void> = [];
 
-	private retryButtonContainer?: Phaser.GameObjects.Container;
-
 	private snowballs: SnowballProjectile[] = [];
 
 	private weaponCooldown = 0;
@@ -108,6 +106,10 @@ export class IsometricDungeon extends Phaser.Scene {
 	private worldOffsetX = 0;
 
 	private worldOffsetY = 0;
+
+	private score = 0;
+
+	private readonly POINTS_PER_KILL = 10;
 
 	constructor() {
 		super(SCENE_KEYS.ISOMETRIC_DUNGEON);
@@ -640,49 +642,11 @@ export class IsometricDungeon extends Phaser.Scene {
 			const nearEnemy = distanceBetween(this.player.gridPos, npc.gridPos) <= 0.75;
 			if (nearEnemy) {
 				this.lastPlayerHitAt = now;
-				this.showRetryButton();
+				this.scene.stop();
+				this.scene.start(SCENE_KEYS.DEATH_SCREEN, { score: this.score });
 				return;
 			}
 		}
-	}
-
-	private showRetryButton() {
-		this.scene.pause();
-
-		const container = this.add.container(this.scale.width / 2, this.scale.height / 2);
-		container.setDepth(9999);
-
-		const overlay = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.7);
-		overlay.setOrigin(0.5);
-
-		const buttonBg = this.add.rectangle(0, 0, 200, 60, 0xcc0000);
-		buttonBg.setOrigin(0.5);
-		buttonBg.setInteractive({ useHandCursor: true });
-
-		const buttonText = this.add.text(0, 0, 'Tentar Novamente', {
-			fontSize: '24px',
-			color: '#ffffff',
-			fontFamily: 'Arial'
-		});
-		buttonText.setOrigin(0.5);
-
-		buttonBg.on('pointerover', () => buttonBg.setFillStyle(0xaa0000));
-		buttonBg.on('pointerout', () => buttonBg.setFillStyle(0xcc0000));
-		buttonBg.on('pointerdown', () => this.restartGame());
-
-		container.add([overlay, buttonBg, buttonText]);
-
-		this.retryButtonContainer = container;
-	}
-
-	private restartGame() {
-		if (this.retryButtonContainer) {
-			this.retryButtonContainer.destroy();
-			this.retryButtonContainer = undefined;
-		}
-
-		this.scene.resume();
-		this.scene.restart();
 	}
 
 	private updateWeaponSystem(delta: number, isoToWorld: (x: number, y: number) => { x: number; y: number }) {
@@ -731,6 +695,8 @@ export class IsometricDungeon extends Phaser.Scene {
 						if (index > -1) {
 							this.npcs.splice(index, 1);
 						}
+
+						this.score += this.POINTS_PER_KILL;
 
 						const allEnemiesDefeated = this.npcs.length === 0;
 						if (allEnemiesDefeated) {
