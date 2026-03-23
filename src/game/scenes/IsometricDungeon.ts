@@ -23,12 +23,12 @@ import {
 import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
-import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
+import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement, damageEnemy } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
-import { fireSnowball, type SnowballProjectile } from './isometricDungeon/projectiles';
+import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
 import { buildDungeonHudState } from './isometricDungeon/hudState';
 import { resolveDungeonInteractionAction } from './isometricDungeon/interactionState';
-import { findNearestEnemy, isEnemyInRange, resolveSnowballHits } from './isometricDungeon/combatSystem';
+import { findNearestEnemy, isEnemyInRange } from './isometricDungeon/combatSystem';
 import {
 	resolveExitAvailableForLevel,
 	resolveStateForLevelLoad,
@@ -73,6 +73,12 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private exitSparkleTimer: Phaser.Time.TimerEvent | null = null;
 
+	private spawnedCollectibles: Map<string, { item: CollectibleItem; graphics: Phaser.GameObjects.Text }> = new Map();
+
+	private readonly collectedCollectibleIds = new Set<string>();
+
+	private totalCollectiblesForLevel = 0;
+
 	private mapWidth = 0;
 
 	private mapHeight = 0;
@@ -99,8 +105,6 @@ export class IsometricDungeon extends Phaser.Scene {
 	private isDungeonQuizActive = false;
 
 	private activeDungeonQuizId: 'blue' | 'yellow' | null = null;
-
-	private lastBlueQuizCorrectAnswers = 0;
 
 	private lastYellowQuizCorrectAnswers = 0;
 
@@ -376,11 +380,12 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.completeFourthLevel();
 				return;
 			case 'emit-gate-locked':
-				if (this.levels[this.currentLevel].exitTile) {
+				const exitTile = this.levels[this.currentLevel].exitTile;
+				if (exitTile) {
 					EventBus.emit('dungeon:interactable-activated', {
 						level: this.currentLevel,
 						type: 'button',
-						position: { ...this.levels[this.currentLevel].exitTile },
+						position: { x: exitTile.x, y: exitTile.y },
 						message: 'The gate is sealed. Press every floor button with push blocks.',
 						durationMs: 2200
 					});
@@ -427,7 +432,6 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.isDungeonQuizActive = true;
 		this.activeDungeonQuizId = 'blue';
-		this.lastBlueQuizCorrectAnswers = 0;
 		EventBus.emit('dungeon:quiz-requested', {
 			quizId: 'blue',
 			segment: 1,
@@ -463,7 +467,6 @@ export class IsometricDungeon extends Phaser.Scene {
 				return;
 			}
 
-			this.lastBlueQuizCorrectAnswers = correctAnswers;
 			if (passed) {
 				this.unlockBlueChannel();
 				return;
@@ -662,26 +665,6 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.snowballs.splice(i, 1);
 			}
 		}
-	}
-
-	private findNearestEnemy(enemies: NpcState[]): NpcState | null {
-		let nearest: NpcState | null = null;
-		let minDist = Infinity;
-
-		for (const enemy of enemies) {
-			const dist = distanceBetween(this.player.gridPos, enemy.gridPos);
-			if (dist < minDist) {
-				minDist = dist;
-				nearest = enemy;
-			}
-		}
-
-		return nearest;
-	}
-
-	private isEnemyInRange(playerPos: Vec2, enemy: NpcState): boolean {
-		const dist = distanceBetween(playerPos, enemy.gridPos);
-		return dist <= 3;
 	}
 
 	private rebuildCollisionMap() {
