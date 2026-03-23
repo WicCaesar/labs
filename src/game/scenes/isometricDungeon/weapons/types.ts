@@ -10,6 +10,7 @@ export interface WeaponContext {
 	enemies: NpcState[];
 	isoToWorld: (x: number, y: number) => Vec2;
 	onEnemyKilled: (npc: NpcState) => void;
+	onEnemyDamaged: (npc: NpcState) => void;
 }
 
 export interface Weapon {

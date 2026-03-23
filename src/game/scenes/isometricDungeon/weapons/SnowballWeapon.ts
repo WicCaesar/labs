@@ -123,6 +123,7 @@ export class SnowballWeapon implements Weapon {
           damageEnemy(p.targetNpc, p.damage);
           p.active = false;
           p.graphics.destroy();
+          ctx.onEnemyDamaged(p.targetNpc);
 
           if (p.targetNpc.health <= 0) {
             ctx.onEnemyKilled(p.targetNpc);

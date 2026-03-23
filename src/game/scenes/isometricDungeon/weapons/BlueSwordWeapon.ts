@@ -158,6 +158,7 @@ export class BlueSwordWeapon implements Weapon {
         // Acertou!
         damageEnemy(enemy, this.damage);
         this.activeSlash.hitEnemies.add(enemy);
+        ctx.onEnemyDamaged(enemy);
 
         if (enemy.health <= 0) {
           ctx.onEnemyKilled(enemy);
