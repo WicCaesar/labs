@@ -34,6 +34,9 @@ import {
 	resolveStateForLevelLoad,
 	resolveWorldColorFilterMode
 } from './isometricDungeon/progressionState';
+import { COLLECTIBLE_CONFIGS } from '../../shared/constants/collectibleConfig';
+import { spawnCollectibles, updateCollectibleOverlap, removeCollectibleFromWorld, clearAllCollectibles } from './isometricDungeon/collectibles';
+import type { CollectibleItem } from '../../shared/types/collectibles';
 
 export class IsometricDungeon extends Phaser.Scene {
 	private readonly map: number[][] = [];
@@ -117,6 +120,13 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private worldOffsetY = 0;
 
+	// Collectibles for theme text gathering
+	private spawnedCollectibles: Map<string, { item: CollectibleItem; graphics: Phaser.GameObjects.Text }> = new Map();
+
+	private collectedCollectibleIds: Set<string> = new Set();
+
+	private totalCollectiblesForLevel = 0;
+
 	constructor() {
 		super(SCENE_KEYS.ISOMETRIC_DUNGEON);
 	}
@@ -143,6 +153,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.drawDungeon();
 		this.spawnActorsForLevel();
+		this.initializeCollectiblesForLevel();
 		this.createInput();
 		this.createLevelMarker();
 		this.unsubscribeHandlers.push(
@@ -212,6 +223,9 @@ export class IsometricDungeon extends Phaser.Scene {
 
 		this.updateWeaponSystem(delta, isoToWorld);
 
+		// Check for collectible item pickups
+		this.updateCollectiblesOverlap();
+
 		if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
 			this.handleInteraction();
 		}
@@ -240,6 +254,7 @@ export class IsometricDungeon extends Phaser.Scene {
 			this.drawDungeon();
 			this.updateLevelMarker();
 			this.spawnActorsForLevel();
+			this.initializeCollectiblesForLevel();
 		}
 	}
 
@@ -1223,6 +1238,77 @@ export class IsometricDungeon extends Phaser.Scene {
 		syncPlayerSprite(this.player, isoToWorld);
 		for (const npc of this.npcs) {
 			syncNpcSprite(npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked);
+		}
+	}
+
+	private initializeCollectiblesForLevel() {
+		// Clear any previous collectibles
+		clearAllCollectibles(this.spawnedCollectibles);
+		this.collectedCollectibleIds.clear();
+		this.totalCollectiblesForLevel = 0;
+
+		// Load collectibles for this level
+		const levelConfig = COLLECTIBLE_CONFIGS[this.currentLevel];
+		if (!levelConfig) {
+			EventBus.emit('dungeon:collectibles-cleared', {
+				levelId: this.currentLevel
+			});
+			return; // This level has no collectibles
+		}
+
+		// Spawn collectible items with proper isometric positioning
+		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
+		this.spawnedCollectibles = spawnCollectibles(this, levelConfig.spawns, isoToWorld);
+
+		// Track total for this level
+		this.totalCollectiblesForLevel = levelConfig.spawns.length;
+
+		// Emit event to React UI with theme data
+		EventBus.emit('dungeon:collectibles-spawned', {
+			levelId: this.currentLevel,
+			collectibles: levelConfig.spawns.map(spawn => ({
+				id: spawn.id,
+				text: spawn.text,
+				position: spawn.position
+			})),
+			fullText: levelConfig.fullText,
+			keywords: levelConfig.keywords,
+			themeTitle: levelConfig.themeTitle
+		});
+	}
+
+	private updateCollectiblesOverlap() {
+		if (this.spawnedCollectibles.size === 0) {
+			return; // No collectibles for this level
+		}
+
+		const newlyCollected = updateCollectibleOverlap(
+			this.player.gridPos,
+			this.spawnedCollectibles,
+			this.collectedCollectibleIds
+		);
+
+		// Handle each newly collected item
+		for (const itemId of newlyCollected) {
+			this.collectedCollectibleIds.add(itemId);
+
+			const entry = this.spawnedCollectibles.get(itemId);
+			if (!entry) continue;
+
+			const { item } = entry;
+
+			// Remove from world with animation
+			removeCollectibleFromWorld(this, this.spawnedCollectibles, itemId);
+
+			// Emit event to React UI with stable total count
+			EventBus.emit('dungeon:collectible-picked-up', {
+				itemId: item.id,
+				itemText: item.text,
+				originalCase: item.originalCase,
+				keywordIndex: item.keywordIndex,
+				collectedCount: this.collectedCollectibleIds.size,
+				totalCount: this.totalCollectiblesForLevel
+			});
 		}
 	}
 }

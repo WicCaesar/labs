@@ -11,6 +11,7 @@ import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistF
 import DialogueBox from './ui/components/DialogueBox';
 import { MediaBlock, OptionContent } from './ui/components/QuizMedia';
 import { HintOverlay } from './ui/components/HintOverlay';
+import { ThemeTextDrawer } from './ui/components/ThemeTextDrawer';
 
 const dollars = new Intl.NumberFormat('en-US', {
 	style: 'currency',
@@ -597,6 +598,7 @@ export const App = () => {
 							</section>
 						</div>
 					) : null}
+					<ThemeTextDrawer />
 				</main>
 			</>
 		);
