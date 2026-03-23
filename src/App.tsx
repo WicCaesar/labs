@@ -16,6 +16,7 @@ export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
 	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
+	const [dungeonTip, setDungeonTip] = useState<{ message: string; durationMs: number } | null>(null);
 	const [dialogueState, setDialogueState] = useState<{
 		isActive: boolean;
 		npcName: string;
@@ -164,12 +165,46 @@ export const App = () => {
 			});
 		});
 
+		let clearTipTimer = 0;
+		const unsubscribeTip = EventBus.on('dungeon:show-tip', ({ message, durationMs = 5000 }) => {
+			setDungeonTip({ message, durationMs });
+			if (clearTipTimer > 0) {
+				window.clearTimeout(clearTipTimer);
+			}
+			clearTipTimer = window.setTimeout(() => {
+				setDungeonTip(null);
+			}, durationMs);
+		});
+
 		return () => {
 			unsubscribeWorld();
 			unsubscribeInteractable();
 			unsubscribeDialogue();
+			unsubscribeTip();
+			if (clearTipTimer > 0) {
+				window.clearTimeout(clearTipTimer);
+			}
 		};
 	}, [isDungeonMode]);
+
+	useEffect(() => {
+		if (!isDungeonMode) return;
+
+		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+			if (event.code === 'Space' && !event.repeat) {
+				event.preventDefault();
+				if (dungeonInteractableNotice) {
+					setDungeonInteractableNotice(null);
+				}
+				if (dungeonTip) {
+					setDungeonTip(null);
+				}
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [isDungeonMode, dungeonInteractableNotice, dungeonTip]);
 
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
@@ -356,7 +391,15 @@ export const App = () => {
 					<div id="game-container" className="phaser-host is-visible" />
 					{dungeonInteractableNotice ? (
 						<aside className="dungeon-interactable-toast" aria-live="assertive">
-							{dungeonInteractableNotice}
+							<span className="toast-message">{dungeonInteractableNotice}</span>
+							<span className="toast-hint">[Espaço] pular</span>
+						</aside>
+					) : null}
+
+					{dungeonTip ? (
+						<aside className="dungeon-interactable-toast" aria-live="polite">
+							<span className="toast-message">{dungeonTip.message}</span>
+							<span className="toast-hint">[Espaço] pular</span>
 						</aside>
 					) : null}
 
@@ -370,12 +413,10 @@ export const App = () => {
 								...dialogueState, 
 								isActive: false 
 							});
-							if (dialogueState.onCompleteQuizId) {
-								EventBus.emit('dungeon:dialogue-finished', {
-									shouldStartQuiz: true,
-									quizId: dialogueState.onCompleteQuizId
-								});
-							}
+							EventBus.emit('dungeon:dialogue-finished', {
+								shouldStartQuiz: !!dialogueState.onCompleteQuizId,
+								quizId: dialogueState.onCompleteQuizId ?? undefined
+							});
 						}}
 					/>
 				) : null}

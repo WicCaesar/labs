@@ -143,13 +143,22 @@ const NPC_DIALOGUE_DATA: Partial<Record<DungeonLevelId, DungeonNpcDialogue>> = {
 		dialogue: [
 			'Quase me assustou, mas vi você se aproximando.',
 			'Já nos vimos antes? Não reconheço seu rosto. Mas também, nós pinguins somos todos iguais.',
-			'Não me diga que você é mais um pinguim metido a herói desejando chegar ao último andar da torre e resgatar as cores do mundo…',
+			'Não me diga que você é mais um pinguim metido a herói desejando chegar ao último andar da torre e resgate as cores do mundo…',
 			'Que novidade… Dia sim, dia não, aparece alguém assim. Todos fracassaram. O mundo continua preto e branco.',
-			'Se pretende mesmo chegar ao último andar, saiba que há muitos desafios a sua espera.',
+			'Se pretender mesmo chegar ao último andar, saiba que há muitos desafios a sua espera.',
 			'Vai ter de provar sua inteligência e habilidade de resolver enigmas.',
 			'E o pior, outros pinguins querendo te derrubar. E, como disse, somos todos iguais…',
 			'Você nunca vai saber se alguém vai tentar te ajudar ou te eliminar. Só se tiver um sexto sentido para perceber essas coisas…',
 			'Enfim, falei demais. Boa sorte!'
+		],
+		quizAfter: null
+	},
+	[DUNGEON_LEVEL.TWO]: {
+		name: 'Pengu',
+		portraitAsset: 'gray-penguin-placeholder',
+		dialogue: [
+			'Veja, um intruso!',
+			'Atrás dele!'
 		],
 		quizAfter: null
 	}

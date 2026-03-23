@@ -5,6 +5,7 @@ export type DungeonInteractionAction =
 	| 'transition-to-third'
 	| 'transition-to-fourth'
 	| 'start-level-one-dialogue'
+	| 'start-level-two-dialogue'
 	| 'kill-enemy-unlock-red'
 	| 'start-yellow-quiz'
 	| 'complete-fourth-level'
@@ -48,6 +49,10 @@ export function resolveDungeonInteractionAction(
 			return 'kill-enemy-unlock-red';
 		}
 		return 'activate-nearby-interactable';
+	}
+
+	if (state === 'level-two-hunt-red') {
+		return 'start-level-two-dialogue';
 	}
 
 	if (state === 'level-two-red-unlocked') {

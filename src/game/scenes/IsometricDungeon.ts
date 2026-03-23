@@ -145,6 +145,8 @@ export class IsometricDungeon extends Phaser.Scene {
 
   private readonly POINTS_PER_KILL = 10;
 
+  private droppedPoints: Phaser.GameObjects.Container[] = [];
+
   private currentWave = 0;
 
   private readonly WAVE_CONFIGS = [
@@ -181,6 +183,8 @@ export class IsometricDungeon extends Phaser.Scene {
     this.load.image("penguin-south-west", "south-west.png");
     this.load.image("penguin-west", "west.png");
     this.load.image("penguin-north-west", "north-west.png");
+    this.load.setPath("assets/sprites/kenney_cursor-pack/PNG/Outline/Double");
+    this.load.image("marker-exclamation", "mark_exclamation.png");
   }
 
   create() {
@@ -202,7 +206,7 @@ export class IsometricDungeon extends Phaser.Scene {
     this.weaponManager.addWeapon(new SnowballWeapon());
 
     // TESTE: descomente para testar a espada azul
-    // this.weaponManager.addWeapon(new BlueSwordWeapon());
+    this.weaponManager.addWeapon(new BlueSwordWeapon());
 
     this.unsubscribeHandlers.push(
       EventBus.on(
@@ -217,6 +221,13 @@ export class IsometricDungeon extends Phaser.Scene {
       EventBus.on(
         "dungeon:dialogue-finished",
         ({ shouldStartQuiz, quizId }) => {
+          if (
+            this.isLevelTwoIntroFrozen &&
+            this.currentLevel === DUNGEON_LEVEL.TWO
+          ) {
+            this.isLevelTwoIntroFrozen = false;
+            this.isLevelTwoIntroActive = false;
+          }
           if (shouldStartQuiz && quizId === "blue") {
             this.startBlueUnlockQuiz();
           }
@@ -236,7 +247,7 @@ export class IsometricDungeon extends Phaser.Scene {
   }
 
   update(_: number, delta: number) {
-    if (this.isDungeonQuizActive) {
+    if (this.isDungeonQuizActive || this.isLevelTwoIntroFrozen) {
       return;
     }
 
@@ -268,7 +279,8 @@ export class IsometricDungeon extends Phaser.Scene {
       if (
         this.state === "level-two-hunt-red" &&
         !allEnemiesDefeated &&
-        isEnemyLevel
+        isEnemyLevel &&
+        !this.isLevelTwoIntroActive
       ) {
         updateEnemyNpcMovement(
           npc,
@@ -298,6 +310,8 @@ export class IsometricDungeon extends Phaser.Scene {
         this.currentLevel === DUNGEON_LEVEL.TWO && !allEnemiesDefeated,
       );
     }
+
+    this.updateExclamationIndicatorPositions();
 
     this.updateWeaponSystem(delta, isoToWorld);
 
@@ -378,7 +392,7 @@ export class IsometricDungeon extends Phaser.Scene {
 
     const isEnemy = level.npcRole === "enemy";
     if (this.currentLevel === DUNGEON_LEVEL.TWO) {
-      this.spawnWave(0);
+      this.spawnWaveWithIndicator(0);
     } else if (level.npcSpawns.length > 0 && level.npcBehavior) {
       for (const spawnPos of level.npcSpawns) {
         const npcSpawn = this.ensureWalkable(spawnPos);
@@ -464,6 +478,9 @@ export class IsometricDungeon extends Phaser.Scene {
         this.transitionToFourthLevel();
         return;
       case "start-level-one-dialogue":
+        this.startNpcDialogue();
+        return;
+      case "start-level-two-dialogue":
         this.startNpcDialogue();
         return;
       case "kill-enemy-unlock-red":
@@ -746,10 +763,13 @@ export class IsometricDungeon extends Phaser.Scene {
       enemies: isHostileLevel ? this.npcs : [], // Lista vazia se não é hostile
       isoToWorld,
       onEnemyKilled: (npc) => this.handleEnemyKilled(npc),
+      onEnemyDamaged: () => this.hideExclamationIndicators(),
     });
   }
 
   private handleEnemyKilled(npc: NpcState): void {
+    const npcWorld = this.isoToWorld(npc.gridPos.x, npc.gridPos.y);
+    
     npc.sprite.destroy();
     npc.healthBarBg.destroy();
     npc.healthBarFill.destroy();
@@ -759,14 +779,18 @@ export class IsometricDungeon extends Phaser.Scene {
       this.npcs.splice(index, 1);
     }
 
-    const points = (npc as NpcState & { customPoints?: number }).customPoints ?? this.POINTS_PER_KILL;
-    this.score += points;
+    const points =
+      (npc as NpcState & { customPoints?: number }).customPoints ??
+      this.POINTS_PER_KILL;
+    
+    this.spawnDroppedPoints(npcWorld, points);
 
     if (this.npcs.length === 0) {
       if (this.currentWave < this.WAVE_CONFIGS.length - 1) {
         this.currentWave++;
-        this.time.delayedCall(800, () => {
-          this.spawnWave(this.currentWave);
+        this.showWaveCountdown(10);
+        this.time.delayedCall(10000, () => {
+          this.spawnWaveWithIndicator(this.currentWave);
         });
       } else {
         this.killEnemyUnlockRed();
@@ -774,18 +798,199 @@ export class IsometricDungeon extends Phaser.Scene {
     }
   }
 
-  private spawnWave(waveIndex: number) {
+  private spawnDroppedPoints(worldPos: Vec2, points: number) {
+    console.log("[DEBUG] Spawning dropped points:", points, "at", worldPos);
+    const colors = [0xffd700, 0xffa500, 0xffff00];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    const container = this.add.container(worldPos.x, worldPos.y);
+    
+    const circle = this.add.circle(0, 0, 8, color, 0.9);
+    const glow = this.add.circle(0, 0, 14, color, 0.25);
+    const star = this.add.text(0, 0, `+${points}`, {
+      fontSize: "12px",
+      fontFamily: "Arial",
+      color: "#000000",
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+    
+    container.add([glow, circle, star]);
+    container.setDepth(worldPos.y + 5);
+
+    this.tweens.add({
+      targets: glow,
+      alpha: 0,
+      duration: 1200,
+      ease: "Cubic.easeOut",
+    });
+    
+    this.droppedPoints.push(container);
+    
+    this.time.delayedCall(1500, () => {
+      this.checkPointCollection();
+    });
+  }
+
+  private checkPointCollection() {
+    const toRemove: Phaser.GameObjects.Container[] = [];
+    const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
+    
+    for (const container of this.droppedPoints) {
+      const dist = Phaser.Math.Distance.Between(
+        playerWorld.x,
+        playerWorld.y,
+        container.x,
+        container.y
+      );
+      
+      if (dist < 20) {
+        this.score += this.POINTS_PER_KILL;
+        container.destroy();
+        toRemove.push(container);
+      }
+    }
+    
+    for (const container of toRemove) {
+      const idx = this.droppedPoints.indexOf(container);
+      if (idx > -1) {
+        this.droppedPoints.splice(idx, 1);
+      }
+    }
+    
+    if (this.droppedPoints.length > 0) {
+      this.time.delayedCall(200, () => this.checkPointCollection());
+    }
+  }
+
+  private exclamationIndicators: {
+    graphic: Phaser.GameObjects.Image;
+    npc: NpcState;
+  }[] = [];
+  private isLevelTwoIntroActive = false;
+  private isLevelTwoIntroFrozen = false;
+  private spawnIndicators: Phaser.GameObjects.GameObject[] = [];
+  private waveCountdownText: Phaser.GameObjects.Text | null = null;
+  private waveCountdownTimer: Phaser.Time.TimerEvent | null = null;
+
+  private spawnWaveWithIndicator(waveIndex: number) {
     const config = this.WAVE_CONFIGS[waveIndex];
     const isoToWorld = (isoX: number, isoY: number) =>
       this.isoToWorld(isoX, isoY);
 
-    const positions = this.getWaveSpawnPositions(config.enemyCount + (config.bossHealth ? 1 : 0));
+    const positions = this.getWaveSpawnPositions(
+      config.enemyCount + (config.bossHealth ? 1 : 0),
+    );
+
+    this.showSpawnIndicators(positions, isoToWorld);
+
+    this.time.delayedCall(2000, () => {
+      this.hideSpawnIndicators();
+      this.spawnWaveWithExclamationAndTooltip(positions, isoToWorld);
+    });
+  }
+
+  private showWaveCountdown(seconds: number) {
+    console.log("[DEBUG] showWaveCountdown called:", seconds);
+    if (this.waveCountdownText) {
+      this.waveCountdownText.destroy();
+    }
+    if (this.waveCountdownTimer) {
+      this.waveCountdownTimer.remove();
+    }
+
+    const textX = this.cameras.main.width - 150;
+    const textY = 50;
+
+    this.waveCountdownText = this.add.text(
+      textX,
+      textY,
+      `Tempo até a próxima horda: ${seconds}s`,
+      {
+        fontSize: "22px",
+        fontFamily: "Arial",
+        color: "#ffff00",
+        backgroundColor: "#000000dd",
+        padding: { x: 16, y: 10 },
+      },
+    );
+    this.waveCountdownText.setOrigin(0.5, 0);
+    this.waveCountdownText.setDepth(1000);
+    this.waveCountdownText.setScrollFactor(0);
+
+    let remaining = seconds;
+    this.waveCountdownTimer = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        remaining--;
+        if (remaining > 0 && this.waveCountdownText) {
+          this.waveCountdownText.setText(`Tempo até a próxima horda: ${remaining}s`);
+        } else if (remaining <= 0 && this.waveCountdownText) {
+          this.waveCountdownText.setText("A horda está chegando!");
+        }
+      },
+      repeat: seconds,
+    });
+  }
+
+  private hideWaveCountdown() {
+    if (this.waveCountdownTimer) {
+      this.waveCountdownTimer.remove();
+      this.waveCountdownTimer = null;
+    }
+    if (this.waveCountdownText) {
+      this.waveCountdownText.destroy();
+      this.waveCountdownText = null;
+    }
+  }
+
+  private showSpawnIndicators(
+    positions: { x: number; y: number }[],
+    isoToWorld: (isoX: number, isoY: number) => { x: number; y: number },
+  ) {
+    this.spawnIndicators = [];
+
+    for (const pos of positions) {
+      const world = isoToWorld(pos.x, pos.y);
+
+      const indicator = this.add.image(world.x, world.y, "marker-exclamation");
+      indicator.setOrigin(0.5, 1);
+      indicator.setScale(0.8);
+      indicator.setDepth(world.y + 20);
+      indicator.setAlpha(0);
+
+      this.tweens.add({
+        targets: indicator,
+        alpha: 1,
+        duration: 300,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      this.spawnIndicators.push(indicator);
+    }
+  }
+
+  private hideSpawnIndicators() {
+    for (const indicator of this.spawnIndicators) {
+      this.tweens.killTweensOf(indicator);
+      indicator.destroy();
+    }
+    this.spawnIndicators = [];
+  }
+
+  private spawnWaveWithExclamationAndTooltip(
+    positions: { x: number; y: number }[],
+    isoToWorld: (isoX: number, isoY: number) => { x: number; y: number },
+  ) {
+    const config = this.WAVE_CONFIGS[this.currentWave];
     const behavior = {
       kind: "enemy-chase" as const,
       speedMultiplier: 1,
       maxHealth: config.enemyHealth,
     };
 
+    const waveIndex = this.currentWave;
     for (let i = 0; i < config.enemyCount; i++) {
       const npc = spawnNpc(
         this,
@@ -795,7 +1000,8 @@ export class IsometricDungeon extends Phaser.Scene {
         behavior,
         `wave-${waveIndex}-enemy-${i}`,
       );
-      (npc as NpcState & { customPoints?: number }).customPoints = config.enemyPoints;
+      (npc as NpcState & { customPoints?: number }).customPoints =
+        config.enemyPoints;
       npc.healthBarBg.setVisible(true);
       npc.healthBarFill.setVisible(true);
       this.npcs.push(npc);
@@ -811,7 +1017,8 @@ export class IsometricDungeon extends Phaser.Scene {
         { ...behavior, maxHealth: config.bossHealth, speedMultiplier: 0.7 },
         `wave-${waveIndex}-boss`,
       );
-      (boss as NpcState & { customPoints?: number }).customPoints = config.bossPoints;
+      (boss as NpcState & { customPoints?: number }).customPoints =
+        config.bossPoints;
       boss.scale = 1.5;
       boss.sprite.setScale(PLAYER_SCALE * 1.5);
       boss.healthBarBg.setVisible(true);
@@ -820,6 +1027,91 @@ export class IsometricDungeon extends Phaser.Scene {
     }
 
     this.rebuildCollisionMap();
+    this.hideWaveCountdown();
+
+    if (this.currentWave === 0) {
+      this.isLevelTwoIntroFrozen = true;
+      this.showExclamationIndicators();
+      this.showLevelTwoEnemyDialogue();
+    } else {
+      this.isLevelTwoIntroActive = true;
+      this.showExclamationIndicators();
+    }
+  }
+
+  private showExclamationIndicators() {
+    this.isLevelTwoIntroActive = true;
+    this.exclamationIndicators = [];
+
+    for (const npc of this.npcs) {
+      const world = this.isoToWorld(npc.gridPos.x, npc.gridPos.y);
+
+      const exclamation = this.add.image(
+        world.x,
+        world.y - TILE_HEIGHT * 1.5,
+        "marker-exclamation",
+      );
+      exclamation.setOrigin(0.5, 1);
+      exclamation.setScale(0.8);
+      exclamation.setDepth(world.y + 20);
+
+      this.tweens.add({
+        targets: exclamation,
+        y: exclamation.y - 10,
+        alpha: 0.3,
+        duration: 400,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      this.exclamationIndicators.push({ graphic: exclamation, npc });
+    }
+
+    this.showWaveAnnouncementTooltip();
+  }
+
+  private showLevelTwoEnemyDialogue() {
+    if (this.currentLevel !== DUNGEON_LEVEL.TWO) {
+      return;
+    }
+
+    const level = this.levels[DUNGEON_LEVEL.TWO];
+    if (!level.npcDialogue) {
+      return;
+    }
+
+    EventBus.emit("dungeon:dialogue-requested", {
+      npcName: level.npcDialogue.name,
+      dialogueLines: level.npcDialogue.dialogue,
+      portraitAsset: level.npcDialogue.portraitAsset,
+      onCompleteQuizId: level.npcDialogue.quizAfter ?? null,
+    });
+  }
+
+  private hideExclamationIndicators() {
+    for (const { graphic } of this.exclamationIndicators) {
+      this.tweens.killTweensOf(graphic);
+      graphic.destroy();
+    }
+    this.exclamationIndicators = [];
+    this.isLevelTwoIntroActive = false;
+  }
+
+  private updateExclamationIndicatorPositions() {
+    for (const { graphic, npc } of this.exclamationIndicators) {
+      const world = this.isoToWorld(npc.gridPos.x, npc.gridPos.y);
+      graphic.x = world.x;
+      graphic.y = world.y - TILE_HEIGHT * 1.5;
+      graphic.setDepth(world.y + 20);
+    }
+  }
+
+  private showWaveAnnouncementTooltip() {
+    EventBus.emit("dungeon:show-tip", {
+      message: "Aproxime-se dos inimigos para causar-lhes dano",
+      durationMs: 4000,
+    });
   }
 
   private getWaveSpawnPositions(count: number): { x: number; y: number }[] {
@@ -857,7 +1149,10 @@ export class IsometricDungeon extends Phaser.Scene {
       if (pos) {
         positions.push(pos);
       } else {
-        positions.push({ x: centerX + (i % 5) - 2, y: centerY + Math.floor(i / 5) - 2 });
+        positions.push({
+          x: centerX + (i % 5) - 2,
+          y: centerY + Math.floor(i / 5) - 2,
+        });
       }
     }
 
