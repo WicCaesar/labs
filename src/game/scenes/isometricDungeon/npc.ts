@@ -22,9 +22,20 @@ const NPC_FEET_OFFSET_Y = TILE_HEIGHT * 0.02;
 const HEALTH_BAR_WIDTH = 36;
 const HEALTH_BAR_HEIGHT = 5;
 const HEALTH_BAR_OFFSET_Y = -TILE_HEIGHT * 1.8;
-const MAX_HEALTH = 50;
-const ENEMY_MOVE_SPEED = 1.8;
-const ENEMY_CATCH_DISTANCE = 0.5;
+
+// Constantes de configuração para inimigos (podem ser sobrescritas via behavior)
+export const DEFAULT_ENEMY_MAX_HEALTH = 50;
+export const DEFAULT_ENEMY_MOVE_SPEED = 1.8;
+export const DEFAULT_ENEMY_CATCH_DISTANCE = 0.5;
+export const DEFAULT_ENEMY_SEPARATION_DISTANCE = 0.6;
+export const DEFAULT_ENEMY_SEPARATION_FORCE = 0.3;
+
+// Constantes internas (valores padrão quando não especificado)
+const MAX_HEALTH = DEFAULT_ENEMY_MAX_HEALTH;
+const ENEMY_MOVE_SPEED = DEFAULT_ENEMY_MOVE_SPEED;
+const ENEMY_CATCH_DISTANCE = DEFAULT_ENEMY_CATCH_DISTANCE;
+const ENEMY_SEPARATION_DISTANCE = DEFAULT_ENEMY_SEPARATION_DISTANCE;
+const ENEMY_SEPARATION_FORCE = DEFAULT_ENEMY_SEPARATION_FORCE;
 
 const LOOK_AROUND_DIRECTIONS: DirectionKey[] = [
   "north",
@@ -57,11 +68,14 @@ export type FriendlyNpcBehavior =
 export type EnemyNpcBehavior = {
   kind: "enemy-chase";
   speedMultiplier: number;
+  maxHealth?: number; // Opcional, usa MAX_HEALTH como padrão
+  moveSpeed?: number; // Opcional, usa ENEMY_MOVE_SPEED como padrão
 };
 
 export type NpcBehavior = FriendlyNpcBehavior | EnemyNpcBehavior;
 
 export type NpcState = {
+  id: string;
   gridPos: Vec2;
   facing: DirectionKey;
   direction: Vec2;
@@ -75,7 +89,12 @@ export type NpcState = {
   healthBarFill: Phaser.GameObjects.Rectangle;
   isFrozen: boolean;
   frozenPosition: Vec2 | null;
+  moveSpeed: number; // Velocidade de movimento (para inimigos)
+  pointsOnKill: number; // Pontos ganhos ao matar este inimigo
+  scale: number; // Escala do sprite (para bosses maiores)
 };
+
+let npcIdCounter = 0;
 
 export function spawnNpc(
   scene: Phaser.Scene,
@@ -83,7 +102,9 @@ export function spawnNpc(
   isoToWorld: IsoToWorld,
   isEnemy: boolean,
   behavior: DungeonNpcBehavior,
+  customId?: string,
 ): NpcState {
+  const id = customId ?? `npc-${++npcIdCounter}`;
   const facing: DirectionKey = "south";
   const world = isoToWorld(spawnPosition.x, spawnPosition.y);
   const sprite = scene.add.image(
@@ -123,7 +144,16 @@ export function spawnNpc(
   healthBarFill.setDepth(world.y + 11);
   healthBarFill.setVisible(false);
 
+  const healthValue = isEnemy && behavior.kind === "enemy-chase" && behavior.maxHealth
+    ? behavior.maxHealth
+    : MAX_HEALTH;
+
+  const moveSpeedValue = isEnemy && behavior.kind === "enemy-chase" && behavior.moveSpeed
+    ? behavior.moveSpeed
+    : ENEMY_MOVE_SPEED;
+
   return {
+    id,
     gridPos: { ...spawnPosition },
     facing,
     direction: randomDirection(),
@@ -137,12 +167,15 @@ export function spawnNpc(
       behavior.kind === "friendly-stationary-look-around"
         ? Phaser.Math.Between(behavior.lookMinMs, behavior.lookMaxMs)
         : 0,
-    health: isEnemy ? MAX_HEALTH : MAX_HEALTH,
-    maxHealth: MAX_HEALTH,
+    health: healthValue,
+    maxHealth: healthValue,
     healthBarBg,
     healthBarFill,
     isFrozen: false,
     frozenPosition: null,
+    moveSpeed: moveSpeedValue,
+    pointsOnKill: 10,
+    scale: 1,
   };
 }
 
@@ -230,6 +263,7 @@ export function updateEnemyNpcMovement(
   collisionMap: number[][],
   worldWidth: number,
   worldHeight: number,
+  otherEnemies: NpcState[] = [],
 ) {
   if (npc.isFrozen) {
     return;
@@ -263,9 +297,38 @@ export function updateEnemyNpcMovement(
     y: toPlayer.y / dist,
   };
 
-  const distance = (ENEMY_MOVE_SPEED * delta) / 1000;
-  const nextX = npc.gridPos.x + norm.x * distance;
-  const nextY = npc.gridPos.y + norm.y * distance;
+  // Aplicar steering de separação para evitar empilhamento
+  let separationX = 0;
+  let separationY = 0;
+  
+  for (const other of otherEnemies) {
+    if (other.id === npc.id || other.health <= 0) continue;
+    
+    const dx = npc.gridPos.x - other.gridPos.x;
+    const dy = npc.gridPos.y - other.gridPos.y;
+    const distToOther = Math.hypot(dx, dy);
+    
+    if (distToOther < ENEMY_SEPARATION_DISTANCE && distToOther > 0.01) {
+      // Força de repulsão inversamente proporcional à distância
+      const force = ENEMY_SEPARATION_FORCE * (1 - distToOther / ENEMY_SEPARATION_DISTANCE);
+      separationX += (dx / distToOther) * force;
+      separationY += (dy / distToOther) * force;
+    }
+  }
+  
+  // Combinar direção ao player com separação
+  const finalDirX = norm.x + separationX;
+  const finalDirY = norm.y + separationY;
+  const finalDist = Math.hypot(finalDirX, finalDirY);
+  
+  const finalNorm = finalDist > 0.01 ? {
+    x: finalDirX / finalDist,
+    y: finalDirY / finalDist,
+  } : norm;
+
+  const distance = (npc.moveSpeed * delta) / 1000;
+  const nextX = npc.gridPos.x + finalNorm.x * distance;
+  const nextY = npc.gridPos.y + finalNorm.y * distance;
 
   const tileX = Math.round(nextX);
   const tileY = Math.round(nextY);
@@ -280,7 +343,7 @@ export function updateEnemyNpcMovement(
   if (!isBlocked) {
     npc.gridPos.x = nextX;
     npc.gridPos.y = nextY;
-    npc.facing = directionFromVector(projectIsoDirectionToScreen(norm));
+    npc.facing = directionFromVector(projectIsoDirectionToScreen(finalNorm));
   } else {
     const canMoveX = collisionMap[Math.round(npc.gridPos.y)]?.[tileX] === 0;
     const canMoveY = collisionMap[tileY]?.[Math.round(npc.gridPos.x)] === 0;
@@ -288,12 +351,12 @@ export function updateEnemyNpcMovement(
     if (canMoveX) {
       npc.gridPos.x = nextX;
       npc.facing = directionFromVector(
-        projectIsoDirectionToScreen({ x: norm.x, y: 0 }),
+        projectIsoDirectionToScreen({ x: finalNorm.x, y: 0 }),
       );
     } else if (canMoveY) {
       npc.gridPos.y = nextY;
       npc.facing = directionFromVector(
-        projectIsoDirectionToScreen({ x: 0, y: norm.y }),
+        projectIsoDirectionToScreen({ x: 0, y: finalNorm.y }),
       );
     }
   }
@@ -330,4 +393,41 @@ export function syncNpcSprite(
 
 export function damageEnemy(npc: NpcState, damage: number) {
   npc.health = Math.max(0, npc.health - damage);
+}
+
+/**
+ * Spawna uma wave/horda de inimigos em runtime
+ * @param scene - Cena do Phaser
+ * @param positions - Array de posições onde spawnar os inimigos
+ * @param isoToWorld - Função de conversão isométrica
+ * @param behavior - Comportamento dos inimigos (pode customizar HP e velocidade)
+ * @param waveId - ID opcional para identificar a wave (usado para gerar IDs únicos)
+ * @returns Array de NpcState spawnados
+ */
+export function spawnEnemyWave(
+  scene: Phaser.Scene,
+  positions: Vec2[],
+  isoToWorld: IsoToWorld,
+  behavior: EnemyNpcBehavior = {
+    kind: "enemy-chase",
+    speedMultiplier: 1,
+  },
+  waveId?: string,
+): NpcState[] {
+  const enemies: NpcState[] = [];
+  const wavePrefix = waveId ?? `wave-${Date.now()}`;
+
+  for (let i = 0; i < positions.length; i++) {
+    const enemy = spawnNpc(
+      scene,
+      positions[i],
+      isoToWorld,
+      true, // isEnemy
+      behavior,
+      `${wavePrefix}-${i}`, // ID único por inimigo na wave
+    );
+    enemies.push(enemy);
+  }
+
+  return enemies;
 }

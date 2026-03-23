@@ -47,6 +47,8 @@ export type DungeonFriendlyNpcBehavior =
 export type DungeonEnemyNpcBehavior = {
 	kind: 'enemy-chase';
 	speedMultiplier: number;
+	maxHealth?: number; // Opcional, usa MAX_HEALTH como padrão
+	moveSpeed?: number; // Opcional, usa ENEMY_MOVE_SPEED como padrão
 };
 
 export type DungeonNpcBehavior = DungeonFriendlyNpcBehavior | DungeonEnemyNpcBehavior;
