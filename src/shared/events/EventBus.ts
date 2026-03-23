@@ -105,6 +105,10 @@ export type AppEventMap = {
 	'dungeon:collectibles-cleared': {
 		levelId: 1 | 2 | 3 | 4;
 	};
+	'dungeon:show-tip': {
+		message: string;
+		durationMs?: number;
+	};
 };
 
 class TypedEventBus {

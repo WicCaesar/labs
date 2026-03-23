@@ -1,92 +1,74 @@
 import Phaser from 'phaser';
-import { SNOWBALL_COLOR, SNOWBALL_RADIUS, SNOWBALL_WEAPON } from './weapon';
-import type { Vec2 } from './types';
 import type { NpcState } from './npc';
+import type { Vec2 } from './types';
 
-export interface SnowballProjectile {
-	graphics: Phaser.GameObjects.Graphics;
+export type SnowballProjectile = {
+	graphics: Phaser.GameObjects.Arc;
+	originX: number;
+	originY: number;
 	x: number;
 	y: number;
-	targetX: number;
-	targetY: number;
-	progress: number;
-	duration: number;
+	vx: number;
+	vy: number;
+	speed: number;
 	damage: number;
 	active: boolean;
-	targetNpc: NpcState | null;
-}
+	targetNpc?: NpcState;
+};
 
-export function createSnowballProjectile(
-	scene: Phaser.Scene,
-	startX: number,
-	startY: number,
-	targetX: number,
-	targetY: number,
-	damage: number
-): SnowballProjectile {
-	const graphics = scene.add.graphics();
-	graphics.fillStyle(SNOWBALL_COLOR, 1);
-	graphics.fillCircle(0, 0, SNOWBALL_RADIUS);
-	graphics.setDepth(100);
-	graphics.setPosition(startX, startY);
-
-	return {
-		graphics,
-		x: startX,
-		y: startY,
-		targetX,
-		targetY,
-		progress: 0,
-		duration: SNOWBALL_WEAPON.speed * 1000,
-		damage,
-		active: true,
-		targetNpc: null
-	};
-}
-
-export function updateSnowballProjectile(
-	projectile: SnowballProjectile,
-	delta: number
-): void {
-	if (!projectile.active) return;
-
-	projectile.progress += delta / projectile.duration;
-
-	if (projectile.progress >= 1) {
-		projectile.progress = 1;
-		projectile.active = false;
-		projectile.graphics.destroy();
-	}
-
-	const t = projectile.progress;
-	projectile.x = Phaser.Math.Linear(projectile.x, projectile.targetX, t * 0.1);
-	projectile.y = Phaser.Math.Linear(projectile.y, projectile.targetY, t * 0.1);
-
-	projectile.graphics.setPosition(projectile.x, projectile.y);
-}
+const DEFAULT_SNOWBALL_SPEED = 0.45;
+const DEFAULT_SNOWBALL_DAMAGE = 1;
+const MAX_TRAVEL_DISTANCE = 900;
 
 export function fireSnowball(
 	scene: Phaser.Scene,
-	playerWorldPos: Vec2,
-	enemyGridPos: Vec2,
-	isoToWorld: (x: number, y: number) => { x: number; y: number }
+	originWorld: Vec2,
+	targetGrid: Vec2,
+	isoToWorld: (isoX: number, isoY: number) => Vec2
 ): SnowballProjectile | null {
-	const enemyWorld = isoToWorld(enemyGridPos.x, enemyGridPos.y);
-	const dx = enemyWorld.x - playerWorldPos.x;
-	const dy = enemyWorld.y - playerWorldPos.y;
-	const dist = Math.sqrt(dx * dx + dy * dy);
+	const targetWorld = isoToWorld(targetGrid.x, targetGrid.y);
+	const dx = targetWorld.x - originWorld.x;
+	const dy = targetWorld.y - originWorld.y;
+	const magnitude = Math.sqrt(dx * dx + dy * dy);
+	if (magnitude <= 0.0001) {
+		return null;
+	}
 
-	if (dist < 1) return null;
+	const vx = dx / magnitude;
+	const vy = dy / magnitude;
+	const graphics = scene.add.circle(originWorld.x, originWorld.y, 6, 0x9fe7ff, 0.95);
+	graphics.setStrokeStyle(2, 0xe9f8ff, 0.9);
+	graphics.setDepth(originWorld.y + 200);
 
-	const targetX = playerWorldPos.x + (dx / dist) * SNOWBALL_WEAPON.range * 64;
-	const targetY = playerWorldPos.y + (dy / dist) * SNOWBALL_WEAPON.range * 32;
+	return {
+		graphics,
+		originX: originWorld.x,
+		originY: originWorld.y,
+		x: originWorld.x,
+		y: originWorld.y,
+		vx,
+		vy,
+		speed: DEFAULT_SNOWBALL_SPEED,
+		damage: DEFAULT_SNOWBALL_DAMAGE,
+		active: true
+	};
+}
 
-	return createSnowballProjectile(
-		scene,
-		playerWorldPos.x,
-		playerWorldPos.y,
-		targetX,
-		targetY,
-		SNOWBALL_WEAPON.damage
-	);
+export function updateSnowballProjectile(projectile: SnowballProjectile, deltaMs: number): void {
+	if (!projectile.active) {
+		return;
+	}
+
+	projectile.x += projectile.vx * projectile.speed * deltaMs;
+	projectile.y += projectile.vy * projectile.speed * deltaMs;
+	projectile.graphics.setPosition(projectile.x, projectile.y);
+	projectile.graphics.setDepth(projectile.y + 200);
+
+	const traveledX = projectile.x - projectile.originX;
+	const traveledY = projectile.y - projectile.originY;
+	const traveledDistance = Math.sqrt(traveledX * traveledX + traveledY * traveledY);
+	if (traveledDistance >= MAX_TRAVEL_DISTANCE) {
+		projectile.active = false;
+		projectile.graphics.destroy();
+	}
 }
