@@ -3,7 +3,7 @@ import { SCENE_KEYS } from '../../shared/constants/sceneKeys';
 import { EventBus } from '../../shared/events/EventBus';
 import type { WorldColorFilterMode } from '../../shared/events/EventBus';
 import { DungeonRenderer } from './isometricDungeon/DungeonRenderer';
-import { INTERACTION_DISTANCE, TILE_HEIGHT, TILE_WIDTH } from './isometricDungeon/constants';
+import { INTERACTION_DISTANCE, PLAYER_SCALE, TILE_HEIGHT, TILE_WIDTH } from './isometricDungeon/constants';
 import {
 	findPushBlockAtTile,
 	getPushDeltaFromFacing,
@@ -143,6 +143,43 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private readonly POINTS_PER_KILL = 10;
 
+	private currentWave = 0;
+
+	private readonly WAVE_CONFIGS = [
+		{
+			enemyCount: 3,
+			enemyHealth: 5,
+			enemyPoints: 10
+		},
+		{
+			enemyCount: 5,
+			enemyHealth: 30,
+			enemyPoints: 10
+		},
+		{
+			enemyCount: 10,
+			enemyHealth: 10,
+			enemyPoints: 10,
+			bossHealth: 100,
+			bossPoints: 10
+		}
+	];
+
+	private exclamationIndicators: {
+		graphic: Phaser.GameObjects.Image;
+		npc: NpcState;
+	}[] = [];
+
+	private isLevelTwoIntroActive = false;
+
+	private isLevelTwoIntroFrozen = false;
+
+	private spawnIndicators: Phaser.GameObjects.GameObject[] = [];
+
+	private waveCountdownText: Phaser.GameObjects.Text | null = null;
+
+	private waveCountdownTimer: Phaser.Time.TimerEvent | null = null;
+
 	private lerdilsonSpinElapsedMs = 0;
 
 	constructor() {
@@ -159,6 +196,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.load.image('penguin-south-west', 'south-west.png');
 		this.load.image('penguin-west', 'west.png');
 		this.load.image('penguin-north-west', 'north-west.png');
+		this.load.setPath('assets/sprites/kenney_cursor-pack/PNG/Outline/Double');
+		this.load.image('marker-exclamation', 'mark_exclamation.png');
 	}
 
 	create() {
@@ -183,6 +222,10 @@ export class IsometricDungeon extends Phaser.Scene {
 			}),
 			EventBus.on('dungeon:dialogue-finished', ({ shouldStartQuiz, quizId }) => {
 				this.isNpcDialogueActive = false;
+				if (this.isLevelTwoIntroFrozen && this.currentLevel === DUNGEON_LEVEL.TWO) {
+					this.isLevelTwoIntroFrozen = false;
+					this.isLevelTwoIntroActive = false;
+				}
 				this.npcDialogueCooldownUntil = this.time.now + this.npcDialogueCooldownMs;
 
 				if (shouldStartQuiz) {
@@ -195,6 +238,9 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.scale.on('resize', this.handleResize, this);
 		this.events.once('shutdown', () => {
 			this.stopExitSparkleLoop();
+			this.hideWaveCountdown();
+			this.hideSpawnIndicators();
+			this.hideExclamationIndicators();
 			this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
 			this.unsubscribeHandlers.length = 0;
 			EventBus.emit('world:color-filter-state-changed', { mode: 'none' });
@@ -203,7 +249,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	update(_: number, delta: number) {
-		if (this.isDungeonQuizActive) {
+		if (this.isDungeonQuizActive || this.isLevelTwoIntroFrozen) {
 			return;
 		}
 
@@ -220,8 +266,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		const allEnemiesDefeated = this.npcs.length === 0 || this.npcs.every(npc => npc.health <= 0);
 
 		for (const npc of this.npcs) {
-			if (this.state === 'level-two-hunt-red' && !allEnemiesDefeated && isEnemyLevel) {
-				updateEnemyNpcMovement(npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight);
+			if (this.state === 'level-two-hunt-red' && !allEnemiesDefeated && isEnemyLevel && !this.isLevelTwoIntroActive) {
+				updateEnemyNpcMovement(npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight, this.npcs);
 				this.handleEnemyTouchDamage();
 			} else {
 				updateNpcMovement(npc, delta, this.collisionMap, this.mapWidth, this.mapHeight);
@@ -231,6 +277,8 @@ export class IsometricDungeon extends Phaser.Scene {
 		for (const npc of this.npcs) {
 			syncNpcSprite(npc, isoToWorld, this.currentLevel === DUNGEON_LEVEL.TWO && !allEnemiesDefeated);
 		}
+
+		this.updateExclamationIndicatorPositions();
 
 		this.applyLerdilsonCelebrationSpin(delta);
 
@@ -294,6 +342,10 @@ export class IsometricDungeon extends Phaser.Scene {
 			if (npc.healthBarFill) npc.healthBarFill.destroy();
 		}
 		this.npcs = [];
+		this.hideWaveCountdown();
+		this.hideSpawnIndicators();
+		this.hideExclamationIndicators();
+		this.currentWave = 0;
 		this.pushBlocks.forEach((block) => block.sprite.destroy());
 		this.pushBlocks.length = 0;
 
@@ -303,12 +355,13 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.cameras.main.centerOn(world.x, world.y);
 
 		const isEnemy = level.npcRole === 'enemy';
-		if (level.npcSpawns.length > 0 && level.npcBehavior) {
+		if (this.currentLevel === DUNGEON_LEVEL.TWO) {
+			this.spawnWaveWithIndicator(0);
+		} else if (level.npcSpawns.length > 0 && level.npcBehavior) {
 			for (const spawnPos of level.npcSpawns) {
 				const npcSpawn = this.ensureWalkable(spawnPos);
 				const npc = spawnNpc(this, npcSpawn, isoToWorld, isEnemy, level.npcBehavior);
-				const hideDefeatedEnemyNpc = this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked;
-				npc.sprite.setVisible(!hideDefeatedEnemyNpc);
+				npc.sprite.setVisible(true);
 				this.npcs.push(npc);
 			}
 		}
@@ -764,26 +817,13 @@ export class IsometricDungeon extends Phaser.Scene {
 				const dist = Math.sqrt(dx * dx + dy * dy);
 
 				if (dist < 20) {
+					this.hideExclamationIndicators();
 					damageEnemy(snowball.targetNpc, snowball.damage);
 					snowball.active = false;
 					snowball.graphics.destroy();
 
 					if (snowball.targetNpc.health <= 0) {
-						snowball.targetNpc.sprite.destroy();
-						snowball.targetNpc.healthBarBg.destroy();
-						snowball.targetNpc.healthBarFill.destroy();
-
-						const index = this.npcs.indexOf(snowball.targetNpc);
-						if (index > -1) {
-							this.npcs.splice(index, 1);
-						}
-
-						this.score += this.POINTS_PER_KILL;
-
-						const allEnemiesDefeated = this.npcs.length === 0;
-						if (allEnemiesDefeated) {
-							this.killEnemyUnlockRed();
-						}
+						this.handleEnemyKilled(snowball.targetNpc);
 					}
 				}
 			}
@@ -792,6 +832,35 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.snowballs.splice(i, 1);
 			}
 		}
+	}
+
+	private handleEnemyKilled(npc: NpcState): void {
+		npc.sprite.destroy();
+		npc.healthBarBg.destroy();
+		npc.healthBarFill.destroy();
+
+		const index = this.npcs.indexOf(npc);
+		if (index > -1) {
+			this.npcs.splice(index, 1);
+		}
+
+		const points = (npc as NpcState & { customPoints?: number }).customPoints ?? this.POINTS_PER_KILL;
+		this.score += points;
+
+		if (this.npcs.length > 0 || this.currentLevel !== DUNGEON_LEVEL.TWO || this.redUnlocked) {
+			return;
+		}
+
+		if (this.currentWave < this.WAVE_CONFIGS.length - 1) {
+			this.currentWave += 1;
+			this.showWaveCountdown(10);
+			this.time.delayedCall(10000, () => {
+				this.spawnWaveWithIndicator(this.currentWave);
+			});
+			return;
+		}
+
+		this.killEnemyUnlockRed();
 	}
 
 	private rebuildCollisionMap() {
@@ -1393,5 +1462,271 @@ export class IsometricDungeon extends Phaser.Scene {
 				totalCount: this.totalCollectiblesForLevel
 			});
 		}
+	}
+
+	private spawnWaveWithIndicator(waveIndex: number) {
+		const config = this.WAVE_CONFIGS[waveIndex];
+		const isoToWorld = (isoX: number, isoY: number) => this.isoToWorld(isoX, isoY);
+		const positions = this.getWaveSpawnPositions(config.enemyCount + (config.bossHealth ? 1 : 0));
+
+		this.showSpawnIndicators(positions, isoToWorld);
+
+		this.time.delayedCall(2000, () => {
+			this.hideSpawnIndicators();
+			this.spawnWaveWithExclamationAndTooltip(positions, isoToWorld);
+		});
+	}
+
+	private showWaveCountdown(seconds: number) {
+		if (this.waveCountdownText) {
+			this.waveCountdownText.destroy();
+		}
+		if (this.waveCountdownTimer) {
+			this.waveCountdownTimer.remove();
+		}
+
+		const textX = this.cameras.main.width - 150;
+		const textY = 50;
+
+		this.waveCountdownText = this.add.text(
+			textX,
+			textY,
+			`Tempo ate a proxima horda: ${seconds}s`,
+			{
+				fontSize: '22px',
+				fontFamily: 'Arial',
+				color: '#ffff00',
+				backgroundColor: '#000000dd',
+				padding: { x: 16, y: 10 }
+			}
+		);
+		this.waveCountdownText.setOrigin(0.5, 0);
+		this.waveCountdownText.setDepth(1000);
+		this.waveCountdownText.setScrollFactor(0);
+
+		let remaining = seconds;
+		this.waveCountdownTimer = this.time.addEvent({
+			delay: 1000,
+			callback: () => {
+				remaining -= 1;
+				if (remaining > 0 && this.waveCountdownText) {
+					this.waveCountdownText.setText(`Tempo ate a proxima horda: ${remaining}s`);
+				} else if (remaining <= 0 && this.waveCountdownText) {
+					this.waveCountdownText.setText('A horda esta chegando!');
+				}
+			},
+			repeat: seconds
+		});
+	}
+
+	private hideWaveCountdown() {
+		if (this.waveCountdownTimer) {
+			this.waveCountdownTimer.remove();
+			this.waveCountdownTimer = null;
+		}
+		if (this.waveCountdownText) {
+			this.waveCountdownText.destroy();
+			this.waveCountdownText = null;
+		}
+	}
+
+	private showSpawnIndicators(
+		positions: { x: number; y: number }[],
+		isoToWorld: (isoX: number, isoY: number) => { x: number; y: number }
+	) {
+		this.spawnIndicators = [];
+
+		for (const pos of positions) {
+			const world = isoToWorld(pos.x, pos.y);
+			const indicator = this.add.image(world.x, world.y, 'marker-exclamation');
+			indicator.setOrigin(0.5, 1);
+			indicator.setScale(0.8);
+			indicator.setDepth(world.y + 20);
+			indicator.setAlpha(0);
+
+			this.tweens.add({
+				targets: indicator,
+				alpha: 1,
+				duration: 300,
+				yoyo: true,
+				repeat: -1,
+				ease: 'Sine.easeInOut'
+			});
+
+			this.spawnIndicators.push(indicator);
+		}
+	}
+
+	private hideSpawnIndicators() {
+		for (const indicator of this.spawnIndicators) {
+			this.tweens.killTweensOf(indicator);
+			indicator.destroy();
+		}
+		this.spawnIndicators = [];
+	}
+
+	private spawnWaveWithExclamationAndTooltip(
+		positions: { x: number; y: number }[],
+		isoToWorld: (isoX: number, isoY: number) => { x: number; y: number }
+	) {
+		const config = this.WAVE_CONFIGS[this.currentWave];
+		const level = this.levels[this.currentLevel];
+		const behavior = {
+			kind: 'enemy-chase' as const,
+			speedMultiplier: 1,
+			maxHealth: config.enemyHealth,
+			moveSpeed: level.npcBehavior?.kind === 'enemy-chase' ? level.npcBehavior.moveSpeed : undefined
+		};
+
+		const waveIndex = this.currentWave;
+		for (let i = 0; i < config.enemyCount; i += 1) {
+			const npc = spawnNpc(this, positions[i], isoToWorld, true, behavior, `wave-${waveIndex}-enemy-${i}`);
+			(npc as NpcState & { customPoints?: number }).customPoints = config.enemyPoints;
+			npc.healthBarBg.setVisible(true);
+			npc.healthBarFill.setVisible(true);
+			this.npcs.push(npc);
+		}
+
+		if (config.bossHealth) {
+			const bossIndex = config.enemyCount;
+			const boss = spawnNpc(
+				this,
+				positions[bossIndex],
+				isoToWorld,
+				true,
+				{ ...behavior, maxHealth: config.bossHealth, speedMultiplier: 0.7 },
+				`wave-${waveIndex}-boss`
+			);
+			(boss as NpcState & { customPoints?: number }).customPoints = config.bossPoints;
+			boss.scale = 1.5;
+			boss.sprite.setScale(PLAYER_SCALE * 1.5);
+			boss.healthBarBg.setVisible(true);
+			boss.healthBarFill.setVisible(true);
+			this.npcs.push(boss);
+		}
+
+		this.rebuildCollisionMap();
+		this.hideWaveCountdown();
+
+		if (this.currentWave === 0) {
+			this.isLevelTwoIntroFrozen = true;
+			this.showExclamationIndicators();
+			this.showLevelTwoEnemyDialogue();
+			return;
+		}
+
+		this.isLevelTwoIntroActive = true;
+		this.showExclamationIndicators();
+	}
+
+	private showExclamationIndicators() {
+		this.isLevelTwoIntroActive = true;
+		this.exclamationIndicators = [];
+
+		for (const npc of this.npcs) {
+			const world = this.isoToWorld(npc.gridPos.x, npc.gridPos.y);
+			const exclamation = this.add.image(world.x, world.y - TILE_HEIGHT * 1.5, 'marker-exclamation');
+			exclamation.setOrigin(0.5, 1);
+			exclamation.setScale(0.8);
+			exclamation.setDepth(world.y + 20);
+
+			this.tweens.add({
+				targets: exclamation,
+				y: exclamation.y - 10,
+				alpha: 0.3,
+				duration: 400,
+				yoyo: true,
+				repeat: -1,
+				ease: 'Sine.easeInOut'
+			});
+
+			this.exclamationIndicators.push({ graphic: exclamation, npc });
+		}
+
+		this.showWaveAnnouncementTooltip();
+	}
+
+	private showLevelTwoEnemyDialogue() {
+		if (this.currentLevel !== DUNGEON_LEVEL.TWO) {
+			return;
+		}
+
+		const level = this.levels[DUNGEON_LEVEL.TWO];
+		if (!level.npcDialogue) {
+			return;
+		}
+
+		this.isNpcDialogueActive = true;
+		EventBus.emit('dungeon:dialogue-requested', {
+			npcName: level.npcDialogue.name,
+			dialogueLines: level.npcDialogue.dialogue,
+			portraitAsset: level.npcDialogue.portraitAsset,
+			onCompleteQuizId: null
+		});
+	}
+
+	private hideExclamationIndicators() {
+		for (const { graphic } of this.exclamationIndicators) {
+			this.tweens.killTweensOf(graphic);
+			graphic.destroy();
+		}
+		this.exclamationIndicators = [];
+		this.isLevelTwoIntroActive = false;
+	}
+
+	private updateExclamationIndicatorPositions() {
+		for (const { graphic, npc } of this.exclamationIndicators) {
+			const world = this.isoToWorld(npc.gridPos.x, npc.gridPos.y);
+			graphic.x = world.x;
+			graphic.y = world.y - TILE_HEIGHT * 1.5;
+			graphic.setDepth(world.y + 20);
+		}
+	}
+
+	private showWaveAnnouncementTooltip() {
+		EventBus.emit('dungeon:show-tip', {
+			message: 'Aproxime-se dos inimigos para causar-lhes dano',
+			durationMs: 4000
+		});
+	}
+
+	private getWaveSpawnPositions(count: number): { x: number; y: number }[] {
+		const positions: { x: number; y: number }[] = [];
+		const centerX = Math.floor(this.mapWidth / 2);
+		const centerY = Math.floor(this.mapHeight / 2);
+		const radius = Math.max(3, Math.min(this.mapWidth, this.mapHeight) / 3);
+
+		for (let i = 0; i < count; i += 1) {
+			let attempts = 0;
+			let pos: { x: number; y: number } | null = null;
+
+			while (attempts < 20) {
+				const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+				const dist = radius * (0.5 + Math.random() * 0.5);
+				const x = Math.round(centerX + Math.cos(angle) * dist);
+				const y = Math.round(centerY + Math.sin(angle) * dist);
+
+				if (x >= 1 && x < this.mapWidth - 1 && y >= 1 && y < this.mapHeight - 1 && this.map[y]?.[x] === 0) {
+					const tooClose = positions.some((existingPos) => Math.hypot(existingPos.x - x, existingPos.y - y) < 2);
+					if (!tooClose) {
+						pos = { x, y };
+						break;
+					}
+				}
+
+				attempts += 1;
+			}
+
+			if (pos) {
+				positions.push(pos);
+			} else {
+				positions.push({
+					x: centerX + (i % 5) - 2,
+					y: centerY + Math.floor(i / 5) - 2
+				});
+			}
+		}
+
+		return positions;
 	}
 }
