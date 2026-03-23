@@ -2,8 +2,14 @@ import Phaser from 'phaser';
 import { RANDOM_DIRECTION_CHOICES } from './constants';
 import type { DirectionKey, Vec2 } from './types';
 
-// Radius in tile-space used to keep sprites from visually clipping into blocked cells.
-const ENTITY_COLLISION_RADIUS = 0.15;
+// Base radius in tile-space used to keep sprites from visually clipping into blocked cells.
+const ENTITY_COLLISION_RADIUS = 0.31;
+
+// Isometric wall faces are not perceived evenly on screen:
+// camera-facing edges (positive iso axes) feel closer, while back edges feel farther.
+// We bias the clearance slightly per direction to keep movement smooth in tight paths.
+/*const COLLISION_RADIUS_NEG_AXIS = ENTITY_COLLISION_RADIUS - 0.03;
+const COLLISION_RADIUS_POS_AXIS = ENTITY_COLLISION_RADIUS + 0.03;*/
 
 function isBlockedTile(map: number[][], tileX: number, tileY: number, worldWidth: number, worldHeight: number): boolean {
 	if (tileX < 0 || tileY < 0 || tileX >= worldWidth || tileY >= worldHeight) {
@@ -23,18 +29,22 @@ export function isWalkable(map: number[][], x: number, y: number, worldWidth: nu
 		return false;
 	}
 
+	// COLLISION_RADIUS_NEG_AXIS
 	if (isBlockedTile(map, tileX - 1, tileY, worldWidth, worldHeight) && x < tileX - 0.5 + ENTITY_COLLISION_RADIUS) {
 		return false;
 	}
 
+	// COLLISION_RADIUS_POS_AXIS
 	if (isBlockedTile(map, tileX + 1, tileY, worldWidth, worldHeight) && x > tileX + 0.5 - ENTITY_COLLISION_RADIUS) {
 		return false;
 	}
 
+	// COLLISION_RADIUS_NEG_AXIS
 	if (isBlockedTile(map, tileX, tileY - 1, worldWidth, worldHeight) && y < tileY - 0.5 + ENTITY_COLLISION_RADIUS) {
 		return false;
 	}
 
+	// COLLISION_RADIUS_POS_AXIS
 	if (isBlockedTile(map, tileX, tileY + 1, worldWidth, worldHeight) && y > tileY + 0.5 - ENTITY_COLLISION_RADIUS) {
 		return false;
 	}

@@ -31,6 +31,16 @@ export type AppEventMap = {
 			| 'level-four-button-puzzle'
 			| 'complete';
 	};
+	'dungeon:dialogue-requested': {
+		npcName: string;
+		dialogueLines: string[];
+		portraitAsset?: string;
+		onCompleteQuizId?: 'blue' | 'yellow' | null;
+	};
+	'dungeon:dialogue-finished': {
+		shouldStartQuiz: boolean;
+		quizId?: 'blue' | 'yellow';
+	};
 	'dungeon:quiz-requested': {
 		quizId: 'blue' | 'yellow';
 		segment: 1 | 2 | 3 | 4 | 5;
@@ -80,6 +90,31 @@ export type AppEventMap = {
 		canAdvanceByAnswer: boolean;
 		isGameWon: boolean;
 		skipsRemaining: number;
+	};
+	'dungeon:collectibles-spawned': {
+		levelId: 1 | 2 | 3 | 4;
+		collectibles: Array<{
+			id: string;
+			text: string;
+			position: { x: number; y: number };
+		}>;
+		fullText: string;
+		keywords: Array<{
+			id: string;
+			originalCase: string;
+		}>;
+		themeTitle: string;
+	};
+	'dungeon:collectible-picked-up': {
+		itemId: string;
+		itemText: string;
+		originalCase: string;
+		keywordIndex: number;
+		collectedCount: number;
+		totalCount: number;
+	};
+	'dungeon:collectibles-cleared': {
+		levelId: 1 | 2 | 3 | 4;
 	};
 };
 

@@ -42,3 +42,8 @@ export const shuffled = <T,>(values: readonly T[]): T[] => {
 
 	return copy;
 };
+
+export const pickRandomHint = (hints: readonly string[]): string => {
+	const index = Math.floor(Math.random() * hints.length);
+	return hints[index] ?? '';
+};

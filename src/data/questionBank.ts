@@ -33,6 +33,7 @@ export interface QuizQuestionRecord {
 	difficulty: 'easy' | 'medium' | 'hard';
 	prompt: MediaPayload; // The question prompt, which can be text, image, audio, or gif
 	promptText?: string; // Optional text shown together with non-text prompts (image/gif/audio/video)
+	hints?: [string, string]; // Optional hints shown by the DICA assistance
 	options: AnswerOptions; // 2, 3, or 4 alternatives; the first option is always the correct one
 	tags?: string[]; // Optional tags for categorization and filtering, e.g., ["geography", "logos", "audio"]
 }
@@ -48,7 +49,7 @@ export const SEGMENT_PRIZE_RANGES: Record<Segment, readonly [number, number]> = 
 };
 
 export const questionBank: QuizQuestionRecord[] = [
-	{
+	/* {
 		id: 'q-001',
 		segment: 1,
 		prizeValue: 2000,
@@ -268,7 +269,7 @@ export const questionBank: QuizQuestionRecord[] = [
 			}
 		],
 		tags: ['mixed-media', 'gif', 'audio-options']
-		},
+		},*/
 
 	// ── Segmento 1 — Cubismo (fácil) ──────────────────────────────────────────
 
@@ -288,6 +289,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Henri Matisse',
 			'Marcel Duchamp'
 		],
+		hints: [
+			'Pense em um pintor espanhol nascido em Málaga.',
+			'Ele também é autor de "Guernica".'
+		],
 		tags: ['cubismo', 'artistas']
 	},
 	{
@@ -306,6 +311,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Itália',
 			'Portugal'
 		],
+		hints: [
+			'É um país da Península Ibérica.',
+			'É o mesmo país de origem de Gaudí.'
+		],
 		tags: ['cubismo', 'artistas', 'geografia']
 	},
 	{
@@ -323,6 +332,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Século XIX',
 			'Século XVIII',
 			'Século XXI'
+		],
+		hints: [
+			'O movimento começa por volta de 1907.',
+			'Pense no século que vai de 1901 a 2000.'
 		],
 		tags: ['cubismo', 'história']
 	},
@@ -345,6 +358,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'O Sonho',
 			'La Vie'
 		],
+		hints: [
+			'O título da obra está em francês.',
+			'Cita uma cidade.'
+		],
 		tags: ['cubismo', 'obras', 'picasso']
 	},
 	{
@@ -363,12 +380,16 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Pinceladas longas e curvilíneas',
 			'Retrato hiperrealista da natureza'
 		],
+		hints: [
+			'O estilo quebra o objeto em planos e ângulos.',
+			'A ideia principal é mostrar mais de um ponto de vista ao mesmo tempo.'
+		],
 		tags: ['cubismo', 'conceitos']
 	},
 	{
 		id: 'q-014',
 		segment: 2,
-		prizeValue: 30000,
+		prizeValue: 50000,
 		category: 'Cubismo',
 		difficulty: 'medium',
 		prompt: {
@@ -381,12 +402,16 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Esculturas do antigo Egito',
 			'Cerâmicas do norte da África'
 		],
+		hints: [
+			'A influência veio de objetos tridimensionais e estilizados.',
+			'Pense em artefatos rituais vistas por artistas de vanguarda em Paris.'
+		],
 		tags: ['cubismo', 'influências', 'arte-africana']
 	},
 	{
 		id: 'q-015',
 		segment: 2,
-		prizeValue: 50000,
+		prizeValue: 30000,
 		category: 'Cubismo',
 		difficulty: 'medium',
 		prompt: {
@@ -396,8 +421,12 @@ export const questionBank: QuizQuestionRecord[] = [
 		options: [
 			'Paris',
 			'Marselha',
-			'Lyon',
-			'Bordeaux'
+			'Madri',
+			'Bordéus'
+		],
+		hints: [
+			'É um lugar onde se fala francês.',
+			'É a cidade de Montmartre e dos grandes ateliês de vanguarda.'
 		],
 		tags: ['cubismo', 'história', 'geografia']
 	},
@@ -409,7 +438,7 @@ export const questionBank: QuizQuestionRecord[] = [
 		segment: 3,
 		prizeValue: 100000,
 		category: 'Cubismo',
-		difficulty: 'easy',
+		difficulty: 'medium',
 		prompt: {
 			kind: 'text',
 			value: 'Como se chama a primeira fase do Cubismo, marcada por formas fortemente fragmentadas e paleta monocromática em cinzas e marrons?'
@@ -419,6 +448,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Cubismo Sintético',
 			'Cubismo Órfico',
 			'Cubismo Purista'
+		],
+		hints: [
+			'É a fase inicial do movimento.',
+			'O nome dessa fase sugere decompor e examinar formas.'
 		],
 		tags: ['cubismo', 'fases', 'conceitos']
 	},
@@ -438,6 +471,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Cubismo Abstrato',
 			'Cubismo Futurista'
 		],
+		hints: [
+			'É a fase posterior ao analítico.',
+			'Essa etapa introduz colagem e simplificação das formas.'
+		],
 		tags: ['cubismo', 'fases', 'conceitos']
 	},
 	{
@@ -445,7 +482,7 @@ export const questionBank: QuizQuestionRecord[] = [
 		segment: 3,
 		prizeValue: 300000,
 		category: 'Cubismo',
-		difficulty: 'medium',
+		difficulty: 'hard',
 		prompt: {
 			kind: 'text',
 			value: 'Quem cunhou o termo "Cubismo" pela primeira vez, em crítica de arte publicada em 1908?'
@@ -456,6 +493,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Daniel-Henry Kahnweiler',
 			'Gertrude Stein'
 		],
+		hints: [
+			'Foi um crítico de arte francês.',
+			'É o mesmo crítico associado ao termo "fauves".'
+		],
 		tags: ['cubismo', 'história', 'crítica']
 	},
 	{
@@ -463,7 +504,7 @@ export const questionBank: QuizQuestionRecord[] = [
 		segment: 3,
 		prizeValue: 500000,
 		category: 'Cubismo',
-		difficulty: 'medium',
+		difficulty: 'hard',
 		prompt: {
 			kind: 'text',
 			value: 'Qual técnica inovadora Georges Braque introduziu no Cubismo Sintético por volta de 1912, colando recortes de papel e outros materiais diretamente sobre a tela?'
@@ -473,6 +514,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Pointilhismo',
 			'Sfumato',
 			'Impasto'
+		],
+		hints: [
+			'A técnica envolve colar materiais sobre a superfície da obra.',
+			'O nome está em francês.'
 		],
 		tags: ['cubismo', 'técnicas', 'braque']
 	},
@@ -484,16 +529,20 @@ export const questionBank: QuizQuestionRecord[] = [
 		segment: 4,
 		prizeValue: 1000000,
 		category: 'Cubismo',
-		difficulty: 'medium',
+		difficulty: 'hard',
 		prompt: {
 			kind: 'text',
-			value: 'Em qual museu de Nova York está permanentemente exposta "Les Demoiselles d\'Avignon", de Picasso?'
+			value: 'Em qual museu de Nova Iorque está permanentemente exposta "Les Demoiselles d\'Avignon", de Picasso?'
 		},
 		options: [
 			'Museu de Arte Moderna (MoMA)',
 			'Metropolitan Museum of Art',
 			'Museu Guggenheim',
 			'Whitney Museum of American Art'
+		],
+		hints: [
+			'É um museu de arte moderna muito conhecido em Nova Iorque.',
+			'A sigla de quatro letras é bastante famosa.'
 		],
 		tags: ['cubismo', 'museus', 'obras']
 	},
@@ -513,6 +562,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'O Touro',
 			'Mulher Chorando'
 		],
+		hints: [
+			'A obra tem nome de uma cidade basca bombardeada.',
+			'É uma pintura monumental em tons de preto, branco e cinza.'
+		],
 		tags: ['cubismo', 'picasso', 'obras', 'história']
 	},
 	{
@@ -531,6 +584,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'México',
 			'Alemanha'
 		],
+		hints: [
+			'Juan Gris nasceu em Madri.',
+			'É o mesmo país de origem de Picasso.'
+		],
 		tags: ['cubismo', 'artistas', 'juan-gris']
 	},
 	{
@@ -548,6 +605,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Fernand Léger',
 			'Juan Gris',
 			'Jean Metzinger'
+		],
+		hints: [
+			'O artista está ligado ao Orfismo e ao uso intenso da cor.',
+			'Sua parceira Sonia também é um nome importante desse núcleo.'
 		],
 		tags: ['cubismo', 'orfismo', 'vertentes']
 	},
@@ -570,6 +631,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Armory Show',
 			'Salon de la Société Nationale'
 		],
+		hints: [
+			'É um salão parisiense conhecido por abrir espaço para vanguardas.',
+			'O nome em francês remete a artistas independentes.'
+		],
 		tags: ['cubismo', 'história', 'exposições']
 	},
 	{
@@ -577,7 +642,7 @@ export const questionBank: QuizQuestionRecord[] = [
 		segment: 5,
 		prizeValue: 3000000,
 		category: 'Cubismo',
-		difficulty: 'medium',
+		difficulty: 'hard',
 		prompt: {
 			kind: 'text',
 			value: 'Quem co-escreveu "Du Cubisme", o principal manifesto teórico do movimento, publicado em 1912?'
@@ -587,6 +652,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Pablo Picasso e Georges Braque',
 			'Guillaume Apollinaire e Max Jacob',
 			'Fernand Léger e Robert Delaunay'
+		],
+		hints: [
+			'A resposta traz dois teóricos que publicaram um livro conjunto em 1912.',
+			'Os sobrenomes começam com G e M.'
 		],
 		tags: ['cubismo', 'manifesto', 'teoria']
 	},
@@ -606,6 +675,10 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Orfismo',
 			'Vorticismo'
 		],
+		hints: [
+			'O apelido remete a formas cilíndricas.',
+			'Pode ter algo a ver com ondas.'
+		],
 		tags: ['cubismo', 'léger', 'vertentes']
 	},
 	{
@@ -624,14 +697,18 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Violino e Cântaro',
 			'Natureza-Morta com Violino'
 		],
+		hints: [
+			'É uma obra de Braque do período analítico com letras na composição.',
+			'O título menciona uma nacionalidade.'
+		],
 		tags: ['cubismo', 'braque', 'obras', 'cubismo-analítico']
 	},
 	{
 		id: 'q-028',
-		segment: 5,
-		prizeValue: 5000000,
+		segment: 1,
+		prizeValue: 2000,
 		category: 'Cubismo',
-		difficulty: 'hard',
+		difficulty: 'easy',
 		prompt: {
 			kind: 'text',
 			value: 'Ao descrever as telas de Braque numa exposição de 1908, o crítico Louis Vauxcelles usou qual palavra que, de forma acidental, acabou batizando todo o movimento?'
@@ -642,7 +719,11 @@ export const questionBank: QuizQuestionRecord[] = [
 			'Plans (planos)',
 			'Blocs (blocos)'
 		],
-		tags: ['cubismo', 'história', 'crítica', 'muito-difícil']
+		hints: [
+			'A palavra descrevia formas geométricas vistas na crítica.',
+			'Esse termo acabou originando o nome do movimento.'
+		],
+		tags: ['cubismo', 'história', 'crítica']
 	}
 ];
 

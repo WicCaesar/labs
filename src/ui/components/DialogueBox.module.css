@@ -1,0 +1,209 @@
+.dialogueBoxContainer {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	padding: 2rem;
+	z-index: 1000;
+	pointer-events: none;
+}
+
+.dialogueBoxContent {
+	display: flex;
+	gap: 1.5rem;
+	background-color: transparent;
+	pointer-events: auto;
+	max-width: 800px;
+	width: 100%;
+}
+
+/* Portrait Section */
+.portraitContainer {
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+}
+
+.portraitCircle {
+	width: 120px;
+	height: 120px;
+	border-radius: 50%;
+	background-color: #87ceeb;
+	border: 4px solid #4a9fbf;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+	flex-shrink: 0;
+}
+
+.portraitImage {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* Dialogue Section */
+.dialogueSection {
+	flex: 1;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+/* Name Bubble - Orange, resizable */
+.nameBubbleContainer {
+	position: relative;
+	display: inline-block;
+	align-self: flex-start;
+}
+
+.nameBubble {
+	background-color: #ff9a3d;
+	border: 3px solid #e68a2a;
+	border-radius: 24px;
+	padding: 0.5rem 1rem;
+	font-family: 'Reddit Sans Condensed', Arial, sans-serif;
+	font-size: 0.95rem;
+	font-weight: bold;
+	color: #2c2c2c;
+	white-space: nowrap;
+	box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+	margin-bottom: -0.75rem;
+	z-index: 10;
+	display: inline-block;
+	min-width: fit-content;
+}
+
+/* Text Bubble - Purple/Lilac cloud-like */
+.textBubble {
+	background-color: #d4b8e8;
+	border: 3px solid #c9a3dd;
+	border-radius: 28px;
+	padding: 1.5rem 1.75rem;
+	position: relative;
+	box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+
+	/* Cloud-like tail pointing to portrait */
+	&::before {
+		content: '';
+		position: absolute;
+		left: -18px;
+		top: 30px;
+		width: 0;
+		height: 0;
+		border-top: 12px solid transparent;
+		border-bottom: 12px solid transparent;
+		border-right: 18px solid #d4b8e8;
+		filter: drop-shadow(-3px 0 4px rgba(0, 0, 0, 0.1));
+	}
+
+	/* Border for tail */
+	&::after {
+		content: '';
+		position: absolute;
+		left: -20px;
+		top: 29px;
+		width: 0;
+		height: 0;
+		border-top: 13px solid transparent;
+		border-bottom: 13px solid transparent;
+		border-right: 18px solid #c9a3dd;
+		z-index: -1;
+	}
+}
+
+.dialogueText {
+	font-family: 'Reddit Sans Condensed', Arial, sans-serif;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: #2c2c2c;
+	margin: 0;
+	padding: 0;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	margin-bottom: 0.75rem;
+}
+
+/* Progress Bar */
+.progressBar {
+	height: 6px;
+	background-color: rgba(0, 0, 0, 0.1);
+	border-radius: 3px;
+	overflow: hidden;
+	margin-bottom: 0.75rem;
+}
+
+.progressFill {
+	height: 100%;
+	background: linear-gradient(90deg, #ff9a3d, #d4b8e8);
+	transition: width 0.3s ease;
+	border-radius: 3px;
+}
+
+/* Spacebar Hint - positioned in bottom right of text bubble */
+.spacebarHint {
+	font-family: 'Reddit Sans Condensed', Arial, sans-serif;
+	font-size: 0.8rem;
+	color: #999;
+	text-align: right;
+	margin: 0;
+	padding: 0;
+	font-style: italic;
+	position: absolute;
+	bottom: 1rem;
+	right: 1.75rem;
+	animation: pulse-hint 1.5s ease-in-out infinite;
+	white-space: nowrap;
+}
+
+@keyframes pulse-hint {
+	0%, 100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 0.85;
+	}
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+	.dialogueBoxContainer {
+		padding: 1rem;
+	}
+
+	.dialogueBoxContent {
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.portraitCircle {
+		width: 100px;
+		height: 100px;
+		border-width: 3px;
+	}
+
+	.textBubble {
+		padding: 1.25rem 1.5rem;
+	}
+
+	.dialogueText {
+		font-size: 0.95rem;
+	}
+
+	.nameBubble {
+		font-size: 0.85rem;
+		padding: 0.4rem 0.8rem;
+	}
+
+	.continueButton {
+		padding: 0.5rem 1.2rem;
+		font-size: 0.85rem;
+	}
+}

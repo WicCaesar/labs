@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Reddit+Sans+Condensed:wght@300;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Reddit+Sans+Condensed:wght@300;500;600&display=swap');
 
 body {
     margin: 0;
@@ -545,6 +545,36 @@ textarea {
 
 .help2-card.face-3 {
     background: #3a1124;
+}
+
+.quiz-hint-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    z-index: 45;
+    cursor: pointer;
+}
+
+.quiz-hint-panel {
+    width: min(640px, 100%);
+    background: #121212;
+    border: 2px solid #f58b32;
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.quiz-hint-message {
+    margin: 0;
+    font-size: clamp(1rem, 2.2vw, 1.25rem);
+    line-height: 1.4;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #f2f2f2;
+    letter-spacing: 0.03em;
 }
 
 @keyframes card-shake {
