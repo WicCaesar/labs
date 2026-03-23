@@ -993,7 +993,7 @@ export class IsometricDungeon extends Phaser.Scene {
 				level: this.currentLevel,
 				type: 'push-block',
 				position: { ...block.position },
-				message: 'The block cannot move in that direction.',
+				message: 'O bloco não pode ser movido nessa direção.',
 				durationMs: 1700
 			});
 			return true;
@@ -1009,8 +1009,8 @@ export class IsometricDungeon extends Phaser.Scene {
 			type: 'push-block',
 			position: { ...destination },
 			message: block.kind === 'slide'
-				? 'Sliding block moved until collision.'
-				: 'Block pushed one tile.',
+				? 'O bloco deslizou até colidir.'
+				: 'O bloco foi empurrado.',
 			durationMs: 1700
 		});
 
