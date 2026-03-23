@@ -4,7 +4,6 @@ import type { WorldColorFilterMode } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
-import { SCENE_KEYS } from './shared/constants/sceneKeys';
 import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
 import { HELP2_CARD_META } from './ui/hooks/quizAssist';
 import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
@@ -13,11 +12,79 @@ import { MediaBlock, OptionContent } from './ui/components/QuizMedia';
 import { HintOverlay } from './ui/components/HintOverlay';
 import { ThemeTextDrawer } from './ui/components/ThemeTextDrawer';
 
-const dollars = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 0
-});
+const MediaBlock = ({
+	media,
+	includeSupplemental = true,
+	audioLabel = 'Áudio'
+}: {
+	media: MediaPayload;
+	includeSupplemental?: boolean;
+	audioLabel?: string;
+}) => {
+	if (media.kind === 'text') {
+		return <p className="media-text">{media.value}</p>;
+	}
+
+	if (media.kind === 'audio') {
+		return (
+			<div className="media-audio" role="group" aria-label={audioLabel}>
+				<div className="media-main">
+					<audio controls preload="metadata" aria-label={audioLabel}>
+						<source src={media.value} />
+						Navegador sem suporte para esse áudio. Informe-nos.
+					</audio>
+				</div>
+				{includeSupplemental ? (
+					<div className="media-supplemental media-supplemental-audio">
+						{media.transcript ? (
+							<details>
+								<summary>Transcrição</summary>
+								<p>{media.transcript}</p>
+							</details>
+						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+						{media.credit ? (
+							<p className="media-credit">Fonte: {media.credit}</p>
+						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+					</div>
+				) : null}
+			</div>
+		);
+	}
+
+	return (
+		<figure className="media-figure">
+			<div className="media-main">
+				<img
+					src={media.value}
+					alt={media.alt ?? 'Mídia'}
+					loading="lazy"
+					decoding="async"
+				/>
+			</div>
+			{includeSupplemental ? (
+				<figcaption className="media-supplemental media-figure-caption">
+					{media.credit ? `Fonte: ${media.credit}` : <span className="media-supplemental-placeholder" aria-hidden="true" />}
+				</figcaption>
+			) : null}
+		</figure>
+	);
+};
+
+const OptionContent = ({
+	option,
+	includeSupplemental = true
+}: {
+	option: NormalizedAnswerOption;
+	includeSupplemental?: boolean;
+}) => {
+	return (
+		<MediaBlock
+			media={option.content}
+			includeSupplemental={includeSupplemental}
+			audioLabel="Áudio"
+		/>
+	);
+};
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
@@ -128,15 +195,10 @@ export const App = () => {
 		: (question.promptText ?? 'Observe o que está abaixo e escolha a resposta mais adequada.');
 
 	useEffect(() => {
-		const game = StartGame(
-			'game-container',
-			isDungeonMode ? SCENE_KEYS.ISOMETRIC_DUNGEON : SCENE_KEYS.QUIZ_GAME
-		);
+		const game = StartGame('game-container');
 
-		// Prevent AudioContext resume errors on closed contexts
 		const handleVisibilityChange = () => {
 			if (document.hidden) {
-				// Pause all audio elements when page is hidden
 				document.querySelectorAll('audio').forEach((audio) => {
 					if (!audio.paused) {
 						audio.pause();
@@ -156,7 +218,6 @@ export const App = () => {
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setWorldFilterMode('none');
-			setDungeonInteractableNotice(null);
 			return;
 		}
 
@@ -198,16 +259,12 @@ export const App = () => {
 		});
 
 		return () => {
-			if (clearNoticeTimer > 0) {
-				window.clearTimeout(clearNoticeTimer);
-			}
 			unsubscribeWorld();
 			unsubscribeHud();
 			unsubscribeInteractable();
 			unsubscribeDialogue();
 		};
 	}, [isDungeonMode]);
-
 
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
@@ -296,8 +353,6 @@ export const App = () => {
 	const skipDisabled = progress.skipsRemaining <= 0;
 	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
 
-	// Filter IDs here must stay in sync with CSS classes in public/style.css
-	// and WorldColorFilterMode values from the typed EventBus contract.
 	const worldFilterDefs = (
 		<svg className="color-filter-defs" aria-hidden="true" focusable="false">
 			<defs>
@@ -613,8 +668,8 @@ export const App = () => {
 			<header className="question-panel" role="region" aria-labelledby="question-title">
 				<div className="question-meta">
 					<span className="badge">Segmento {progress.activeSegment}</span>
-					<span className="badge">Prêmio da pergunta {dollars.format(progress.currentQuestionPrize)}</span>
-					<span className="badge">Garantido {dollars.format(progress.guaranteedPrize)}</span>
+					<span className="badge">Prêmio da pergunta R$ {progress.currentQuestionPrize}</span>
+					<span className="badge">Garantido R$ {progress.guaranteedPrize}</span>
 					<span className="badge">
 						Limpos {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'nenhum'}
 					</span>

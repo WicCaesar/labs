@@ -1,8 +1,9 @@
 import { Game as MainGame } from './scenes/Game';
 import { IsometricDungeon } from './scenes/IsometricDungeon';
+import { MainScreen } from './scenes/MainScreen';
+import { RankScreen } from './scenes/RankScreen';
+import { DeathScreen } from './scenes/DeathScreen';
 import { AUTO, Game, Scale,Types } from 'phaser';
-import type { SceneKey } from '../shared/constants/sceneKeys';
-import { SCENE_KEYS } from '../shared/constants/sceneKeys';
 
 // Find out more information about the Game Config at:
 // https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -18,12 +19,8 @@ const config: Types.Core.GameConfig = {
     }
 };
 
-const StartGame = (parent: string, startScene: SceneKey = SCENE_KEYS.QUIZ_GAME) => {
-	// Phaser starts from the first scene in the array, so we place the requested
-	// scene first while still registering both scenes for later switching.
-    const orderedScenes = startScene === SCENE_KEYS.ISOMETRIC_DUNGEON
-        ? [IsometricDungeon, MainGame]
-        : [MainGame, IsometricDungeon];
+const StartGame = (parent: string) => {
+    const orderedScenes = [MainScreen, MainGame, IsometricDungeon, RankScreen, DeathScreen];
 
     return new Game({ ...config, parent, scene: orderedScenes });
 }

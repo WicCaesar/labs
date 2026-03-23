@@ -11,6 +11,7 @@ export type WorldColorFilterMode =
 	| 'green-blue-unlocked';
 
 export type AppEventMap = {
+	'scene:main-screen-started': Record<string, never>;
 	'world:color-filter-state-changed': {
 		mode: WorldColorFilterMode;
 	};
