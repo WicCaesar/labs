@@ -97,7 +97,7 @@ export function spawnNpc(
 		barWorldY,
 		HEALTH_BAR_WIDTH,
 		HEALTH_BAR_HEIGHT,
-		0xcc0000
+		0x000000
 	);
 	healthBarBg.setOrigin(0.5, 0.5);
 	healthBarBg.setDepth(world.y + 10);
@@ -108,7 +108,7 @@ export function spawnNpc(
 		barWorldY,
 		HEALTH_BAR_WIDTH,
 		HEALTH_BAR_HEIGHT,
-		0x2d5a27
+		0xffffff
 	);
 	healthBarFill.setOrigin(0.5, 0.5);
 	healthBarFill.setDepth(world.y + 11);
