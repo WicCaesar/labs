@@ -23,9 +23,17 @@ import {
 import type { DungeonMarker } from './isometricDungeon/dungeonMapParser';
 import { distanceBetween, isWalkable } from './isometricDungeon/navigation';
 import type { Vec2 } from './isometricDungeon/types';
-import { damageEnemy, spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
+import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateNpcMovement } from './isometricDungeon/npc';
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
-import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
+import { fireSnowball, type SnowballProjectile } from './isometricDungeon/projectiles';
+import { buildDungeonHudState } from './isometricDungeon/hudState';
+import { resolveDungeonInteractionAction } from './isometricDungeon/interactionState';
+import { findNearestEnemy, isEnemyInRange, resolveSnowballHits } from './isometricDungeon/combatSystem';
+import {
+	resolveExitAvailableForLevel,
+	resolveStateForLevelLoad,
+	resolveWorldColorFilterMode
+} from './isometricDungeon/progressionState';
 
 export class IsometricDungeon extends Phaser.Scene {
 	private readonly map: number[][] = [];
@@ -220,15 +228,12 @@ export class IsometricDungeon extends Phaser.Scene {
 		this.mapWidth = level.mapWidth;
 		this.mapHeight = level.mapHeight;
 
-		if (levelId === DUNGEON_LEVEL.ONE) {
-			this.state = this.blueUnlocked ? 'level-one-blue-unlocked' : 'level-one-hunt-blue';
-		} else if (levelId === DUNGEON_LEVEL.TWO) {
-			this.state = this.redUnlocked ? 'level-two-red-unlocked' : 'level-two-hunt-red';
-		} else if (levelId === DUNGEON_LEVEL.THREE) {
-			this.state = this.yellowUnlocked ? 'level-three-yellow-unlocked' : 'level-three-hunt-yellow';
-		} else {
-			this.state = 'level-four-button-puzzle';
-		}
+		this.state = resolveStateForLevelLoad({
+			levelId,
+			blueUnlocked: this.blueUnlocked,
+			redUnlocked: this.redUnlocked,
+			yellowUnlocked: this.yellowUnlocked
+		});
 
 		if (!isInitialLoad) {
 			this.updateCameraBoundsForCurrentMap();
@@ -330,100 +335,52 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
-		if (this.state === 'level-one-hunt-blue') {
-			const canDescend = this.isNearLevelExit();
-			if (canDescend) {
+		const action = resolveDungeonInteractionAction({
+			state: this.state,
+			redUnlocked: this.redUnlocked,
+			nearExit: this.isNearLevelExit(),
+			nearNpc: this.isPlayerNearNpc(),
+			allButtonsPressed: this.areAllButtonsPressed()
+		});
+
+		switch (action) {
+			case 'transition-to-second':
 				this.transitionToSecondLevel();
 				return;
-			}
-
-			const nearNpc = this.isPlayerNearNpc();
-			if (nearNpc) {
-				this.startNpcDialogue();
-				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-one-blue-unlocked') {
-			const canDescend = this.isNearLevelExit();
-			if (canDescend) {
-				this.transitionToSecondLevel();
-				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-two-hunt-red' && !this.redUnlocked) {
-			const nearEnemy = this.isPlayerNearNpc();
-			if (nearEnemy) {
-				this.killEnemyUnlockRed();
-				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-two-red-unlocked') {
-			const canDescend = this.isNearLevelExit();
-			if (canDescend) {
+			case 'transition-to-third':
 				this.transitionToThirdLevel();
 				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-three-hunt-yellow') {
-			const nearNpc = this.isPlayerNearNpc();
-			if (nearNpc) {
-				this.startYellowUnlockQuiz();
-				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-three-yellow-unlocked') {
-			const canDescend = this.isNearLevelExit();
-			if (canDescend) {
+			case 'transition-to-fourth':
 				this.transitionToFourthLevel();
 				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
-		}
-
-		if (this.state === 'level-four-button-puzzle') {
-			const nearExit = this.isNearLevelExit();
-			if (nearExit) {
-				if (this.areAllButtonsPressed()) {
-					this.completeFourthLevel();
-				} else {
+			case 'start-level-one-dialogue':
+				this.startNpcDialogue();
+				return;
+			case 'kill-enemy-unlock-red':
+				this.killEnemyUnlockRed();
+				return;
+			case 'start-yellow-quiz':
+				this.startYellowUnlockQuiz();
+				return;
+			case 'complete-fourth-level':
+				this.completeFourthLevel();
+				return;
+			case 'emit-gate-locked':
+				if (this.levels[this.currentLevel].exitTile) {
 					EventBus.emit('dungeon:interactable-activated', {
 						level: this.currentLevel,
 						type: 'button',
-						position: { ...this.levels[this.currentLevel].exitTile! },
+						position: { ...this.levels[this.currentLevel].exitTile },
 						message: 'The gate is sealed. Press every floor button with push blocks.',
 						durationMs: 2200
 					});
 				}
 				return;
-			}
-
-			this.tryActivateNearbyInteractable();
-			return;
+			case 'activate-nearby-interactable':
+			default:
+				this.tryActivateNearbyInteractable();
+				return;
 		}
-
-		this.tryActivateNearbyInteractable();
 	}
 
 	private unlockBlueChannel() {
@@ -537,7 +494,7 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private killEnemyUnlockRed() {
-		if (this.redUnlocked || this.npcs.length === 0) {
+		if (this.redUnlocked) {
 			return;
 		}
 
@@ -572,46 +529,12 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private getWorldColorFilterMode(): WorldColorFilterMode {
-		const red = this.redUnlocked;
-		// The yellow quiz restores the green RGB channel for additive color mixing.
-		const green = this.yellowUnlocked;
-		const blue = this.blueUnlocked;
-
-		// Order matters: we resolve 3-channel first, then 2-channel combinations,
-		// then single-channel states, finally grayscale fallback.
-		if (red && green && blue) {
-			return 'none';
-		}
-
-		if (red && green) {
-			return 'red-green-unlocked';
-		}
-
-		if (red && blue) {
-			return 'red-blue-unlocked';
-		}
-
-		if (green && blue) {
-			return 'green-blue-unlocked';
-		}
-
-		if (red) {
-			return 'red-unlocked';
-		}
-
-		if (green) {
-			return 'green-unlocked';
-		}
-
-		if (blue) {
-			return 'blue-unlocked';
-		}
-
-		if (this.currentLevel === DUNGEON_LEVEL.TWO) {
-			return 'red-unlocked';
-		}
-
-		return 'grayscale';
+		return resolveWorldColorFilterMode({
+			redUnlocked: this.redUnlocked,
+			yellowUnlocked: this.yellowUnlocked,
+			blueUnlocked: this.blueUnlocked,
+			currentLevel: this.currentLevel
+		});
 	}
 
 	private transitionToThirdLevel() {
@@ -708,12 +631,12 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private updateWeaponSystem(delta: number, isoToWorld: (x: number, y: number) => { x: number; y: number }) {
 		const isHostileLevel = this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked;
-		const aliveEnemies = this.npcs.filter(npc => npc.health > 0);
+		const aliveEnemies = this.npcs.filter((npc) => npc.health > 0);
 
 		if (isHostileLevel && aliveEnemies.length > 0) {
-			const nearestEnemy = this.findNearestEnemy(aliveEnemies);
+			const nearestEnemy = findNearestEnemy(aliveEnemies, this.player.gridPos);
 
-			if (nearestEnemy && this.isEnemyInRange(this.player.gridPos, nearestEnemy)) {
+			if (nearestEnemy && isEnemyInRange(this.player.gridPos, nearestEnemy)) {
 				this.weaponCooldown -= delta;
 
 				if (this.weaponCooldown <= 0) {
@@ -728,63 +651,13 @@ export class IsometricDungeon extends Phaser.Scene {
 			}
 		}
 
-		for (let i = this.snowballs.length - 1; i >= 0; i--) {
-			const snowball = this.snowballs[i];
-			updateSnowballProjectile(snowball, delta);
-
-			if (snowball.active && snowball.targetNpc) {
-				const enemyWorld = isoToWorld(snowball.targetNpc.gridPos.x, snowball.targetNpc.gridPos.y);
-				const dx = snowball.x - enemyWorld.x;
-				const dy = snowball.y - enemyWorld.y;
-				const dist = Math.sqrt(dx * dx + dy * dy);
-
-				if (dist < 20) {
-					damageEnemy(snowball.targetNpc, snowball.damage);
-					snowball.active = false;
-					snowball.graphics.destroy();
-
-					if (snowball.targetNpc.health <= 0) {
-						snowball.targetNpc.sprite.destroy();
-						snowball.targetNpc.healthBarBg.destroy();
-						snowball.targetNpc.healthBarFill.destroy();
-
-						const index = this.npcs.indexOf(snowball.targetNpc);
-						if (index > -1) {
-							this.npcs.splice(index, 1);
-						}
-
-						const allEnemiesDefeated = this.npcs.length === 0;
-						if (allEnemiesDefeated) {
-							this.killEnemyUnlockRed();
-						}
-					}
-				}
-			}
-
-			if (!snowball.active) {
-				this.snowballs.splice(i, 1);
-			}
-		}
-	}
-
-	private findNearestEnemy(enemies: NpcState[]): NpcState | null {
-		let nearest: NpcState | null = null;
-		let minDist = Infinity;
-
-		for (const enemy of enemies) {
-			const dist = distanceBetween(this.player.gridPos, enemy.gridPos);
-			if (dist < minDist) {
-				minDist = dist;
-				nearest = enemy;
-			}
-		}
-
-		return nearest;
-	}
-
-	private isEnemyInRange(playerPos: Vec2, enemy: NpcState): boolean {
-		const dist = distanceBetween(playerPos, enemy.gridPos);
-		return dist <= 3;
+		resolveSnowballHits({
+			snowballs: this.snowballs,
+			delta,
+			npcs: this.npcs,
+			isoToWorld,
+			onAllEnemiesDefeated: () => this.killEnemyUnlockRed()
+		});
 	}
 
 	private rebuildCollisionMap() {
@@ -1158,11 +1031,12 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		const world = this.isoToWorld(level.exitTile.x, level.exitTile.y);
-		const exitAvailable =
-			(this.currentLevel === DUNGEON_LEVEL.ONE)
-			|| (this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked)
-			|| (this.currentLevel === DUNGEON_LEVEL.THREE && this.yellowUnlocked)
-			|| (this.currentLevel === DUNGEON_LEVEL.FOUR && this.areAllButtonsPressed());
+		const exitAvailable = resolveExitAvailableForLevel({
+			levelId: this.currentLevel,
+			redUnlocked: this.redUnlocked,
+			yellowUnlocked: this.yellowUnlocked,
+			allButtonsPressed: this.areAllButtonsPressed()
+		});
 		const markerY = world.y;
 		const wasUnlocked = this.exitUnlockedByLevel.get(this.currentLevel) ?? false;
 		if (exitAvailable && !wasUnlocked) {
@@ -1234,11 +1108,12 @@ export class IsometricDungeon extends Phaser.Scene {
 					return;
 				}
 
-				const exitAvailable =
-					(this.currentLevel === DUNGEON_LEVEL.ONE)
-					|| (this.currentLevel === DUNGEON_LEVEL.TWO && this.redUnlocked)
-					|| (this.currentLevel === DUNGEON_LEVEL.THREE && this.yellowUnlocked)
-					|| (this.currentLevel === DUNGEON_LEVEL.FOUR && this.areAllButtonsPressed());
+				const exitAvailable = resolveExitAvailableForLevel({
+					levelId: this.currentLevel,
+					redUnlocked: this.redUnlocked,
+					yellowUnlocked: this.yellowUnlocked,
+					allButtonsPressed: this.areAllButtonsPressed()
+				});
 				if (!exitAvailable) {
 					return;
 				}
@@ -1289,168 +1164,24 @@ export class IsometricDungeon extends Phaser.Scene {
 		const nearInteractable = this.getNearestInteractable() !== null;
 		const canPushFacingBlock = this.isFacingPushableBlock();
 
-		if (this.state === 'level-one-hunt-blue') {
-			this.emitHudState({
-				level: 1,
-				state: this.state,
-				status: 'A masmorra está em escala de cinza. Fale com Jarbas para receber orientações.',
-				hint: nearExit
-					? 'Pressione ESPAÇO para descer agora para o nível 2.'
-					: canPushFacingBlock
-						? 'Pressione ESPAÇO para empurrar o bloco à sua frente.'
-					: nearNpc
-						? 'Pressione ESPAÇO para conversar com Jarbas.'
-						: nearInteractable
-							? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
-							: 'Encontre o buraco central para descer ou fale com Jarbas antes de seguir.',
-				objective: 'Desça para o nível 2. Azul será recuperado no desafio final do nível 4.',
-				canInteract: nearNpc || nearExit || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-one-blue-unlocked') {
-			this.emitHudState({
-				level: 1,
-				state: this.state,
-				status: 'Azul restaurado. O buraco de descida está ativo.',
-				hint: nearExit
-					? 'Pressione ESPAÇO para descer para o próximo nível.'
-					: canPushFacingBlock
-						? 'Pressione ESPAÇO para empurrar o bloco à sua frente.'
-					: nearInteractable
-						? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
-					: 'Encontre o buraco escuro perto do centro da masmorra.',
-				objective: 'Desça para o nível 2.',
-				canInteract: nearExit || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-two-hunt-red') {
-			this.emitHudState({
-				level: 2,
-				state: this.state,
-				status: 'O pinguim está hostil agora. Fique em movimento.',
-				hint: nearNpc
-					? 'Pressione ESPAÇO perto do pinguim inimigo para atacar e derrotá-lo.'
-					: canPushFacingBlock
-						? 'Pressione ESPAÇO para empurrar o bloco à sua frente e abrir um caminho mais seguro.'
-					: nearInteractable
-						? 'Pressione ESPAÇO perto da marcação para inspecioná-la enquanto evita o inimigo.'
-					: 'Evite o contato. Aproxime-se apenas quando estiver pronto para atacar.',
-				objective: 'Derrote o pinguim inimigo para desbloquear vermelho.',
-				canInteract: nearNpc || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-two-red-unlocked') {
-			this.emitHudState({
-				level: 2,
-				state: this.state,
-				status: 'Vermelho restaurado. As próximas escadas estão ativas.',
-				hint: nearExit
-					? 'Pressione ESPAÇO para descer para o nível 3 e enfrentar o quiz final.'
-					: canPushFacingBlock
-						? 'Pressione ESPAÇO para empurrar o bloco à sua frente.'
-					: nearInteractable
-						? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
-						: 'Encontre as escadas marcadas para seguir para o nível 3.',
-				objective: 'Chegue ao nível 3 e desbloqueie amarelo (canal verde).',
-				canInteract: nearExit || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-three-hunt-yellow') {
-			if (this.isDungeonQuizActive && this.activeDungeonQuizId === 'yellow') {
-				this.emitHudState({
-					level: 3,
-					state: this.state,
-					status: 'Quiz final em andamento: responda 3 perguntas do segmento 2 para desbloquear amarelo.',
-					hint: 'Complete o quiz usando teclado ou mouse. ESC fecha o quiz.',
-					objective: 'Passe no quiz final do segmento 2.',
-					canInteract: false
-				});
-				return;
-			}
-
-			this.emitHudState({
-				level: 3,
-				state: this.state,
-				status: 'Desafio final: fale com o pinguim para desbloquear amarelo.',
-				hint: nearNpc
-					? 'Pressione ESPAÇO para iniciar um quiz de 3 perguntas do segmento 2. Tire 3/3.'
-					: canPushFacingBlock
-						? 'Pressione ESPAÇO para empurrar blocos de puzzle e abrir a rota.'
-					: nearInteractable
-						? 'Pressione ESPAÇO perto da marcação para inspecioná-la.'
-						: this.lastYellowQuizCorrectAnswers > 0
-							? `Última pontuação final: ${this.lastYellowQuizCorrectAnswers}/3. Fale com o pinguim para tentar novamente.`
-							: 'Encontre o pinguim e passe no quiz final.',
-				objective: 'Desbloqueie amarelo (canal verde) para restaurar RGB completo.',
-				canInteract: nearNpc || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-three-yellow-unlocked') {
-			this.emitHudState({
-				level: 3,
-				state: this.state,
-				status: 'Yellow restored. A deeper descent path is now open.',
-				hint: nearExit
-					? 'Press SPACE to descend to level 4 and solve the block-button puzzle.'
-					: canPushFacingBlock
-						? 'Press SPACE to push the block in front of you.'
-						: nearInteractable
-							? 'Press SPACE near the marker to inspect it.'
-							: 'Find the descent marker to continue.',
-				objective: 'Descend to level 4.',
-				canInteract: nearExit || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		if (this.state === 'level-four-button-puzzle') {
-			const buttonCount = this.getButtonMarkers().length;
-			const pressedCount = this.pressedButtonKeys.size;
-			this.emitHudState({
-				level: 4,
-				state: this.state,
-				status: 'Final puzzle: press all floor buttons using push blocks.',
-				hint: nearExit
-					? this.areAllButtonsPressed()
-						? 'All buttons are active. Press SPACE at the gate to complete the dungeon.'
-						: 'Gate is locked. Activate all buttons first.'
-					: canPushFacingBlock
-						? 'Press SPACE to push the block in front of you.'
-						: nearInteractable
-							? 'Press SPACE near the marker to inspect it.'
-							: 'Position blocks on every button tile.',
-				objective: `Activate all floor buttons (${pressedCount}/${buttonCount}).`,
-				canInteract: nearExit || nearInteractable || canPushFacingBlock
-			});
-			return;
-		}
-
-		this.emitHudState({
-			level: this.currentLevel,
-			state: 'complete',
-			status: this.blueUnlocked && this.redUnlocked
-				? 'Desafio final completo: RGB completo restaurado.'
-				: 'Desafio final completo: verde desbloqueado. Recupere azul + vermelho para RGB completo.',
-			hint: this.blueUnlocked && this.redUnlocked
-				? (nearInteractable
-					? 'Todos os canais de cor recuperados. Pressione ESPAÇO perto de uma marcação para inspecioná-la.'
-					: 'Todos os canais de cor recuperados. Explore livremente.')
-				: (nearInteractable
-					? 'Verde restaurado. Pressione ESPAÇO perto de uma marcação para inspecioná-la enquanto busca os canais faltantes.'
-					: 'Verde restaurado. Volte para desbloquear os canais restantes se necessário.'),
-			objective: 'Completo.',
-			canInteract: nearInteractable || canPushFacingBlock
+		const hudState = buildDungeonHudState({
+			state: this.state,
+			currentLevel: this.currentLevel,
+			isDungeonQuizActive: this.isDungeonQuizActive,
+			activeDungeonQuizId: this.activeDungeonQuizId,
+			lastYellowQuizCorrectAnswers: this.lastYellowQuizCorrectAnswers,
+			blueUnlocked: this.blueUnlocked,
+			redUnlocked: this.redUnlocked,
+			nearNpc,
+			nearExit,
+			nearInteractable,
+			canPushFacingBlock,
+			areAllButtonsPressed: this.areAllButtonsPressed(),
+			buttonCount: this.getButtonMarkers().length,
+			pressedCount: this.pressedButtonKeys.size
 		});
+
+		this.emitHudState(hudState);
 	}
 
 	private emitHudState(payload: DungeonHudState) {

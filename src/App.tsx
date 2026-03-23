@@ -9,86 +9,14 @@ import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
 import { HELP2_CARD_META } from './ui/hooks/quizAssist';
 import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
 import DialogueBox from './ui/components/DialogueBox';
+import { MediaBlock, OptionContent } from './ui/components/QuizMedia';
+import { HintOverlay } from './ui/components/HintOverlay';
 
 const dollars = new Intl.NumberFormat('en-US', {
 	style: 'currency',
 	currency: 'USD',
 	maximumFractionDigits: 0
 });
-
-const MediaBlock = ({
-	media,
-	includeSupplemental = true,
-	audioLabel = 'Áudio'
-}: {
-	media: MediaPayload;
-	includeSupplemental?: boolean;
-	audioLabel?: string;
-}) => {
-	if (media.kind === 'text') {
-		return <p className="media-text">{media.value}</p>;
-	}
-
-	if (media.kind === 'audio') {
-		return (
-			<div className="media-audio" role="group" aria-label={audioLabel}>
-				<div className="media-main">
-					<audio controls preload="metadata" aria-label={audioLabel}>
-						<source src={media.value} />
-						Navegador sem suporte para esse áudio. Informe-nos.
-					</audio>
-				</div>
-				{includeSupplemental ? (
-					<div className="media-supplemental media-supplemental-audio">
-						{media.transcript ? (
-							<details>
-								<summary>Transcrição</summary>
-								<p>{media.transcript}</p>
-							</details>
-						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-						{media.credit ? (
-							<p className="media-credit">Fonte: {media.credit}</p>
-						) : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-					</div>
-				) : null}
-			</div>
-		);
-	}
-
-	return (
-		<figure className="media-figure">
-			<div className="media-main">
-				<img
-					src={media.value}
-					alt={media.alt ?? 'Mídia'}
-					loading="lazy"
-					decoding="async"
-				/>
-			</div>
-			{includeSupplemental ? (
-				<figcaption className="media-supplemental media-figure-caption">
-					{media.credit ? `Fonte: ${media.credit}` : <span className="media-supplemental-placeholder" aria-hidden="true" />}
-				</figcaption>
-			) : null}
-		</figure>
-	);
-};
-
-const OptionContent = ({
-	option,
-	includeSupplemental = true
-}: {
-	option: NormalizedAnswerOption;
-	includeSupplemental?: boolean;
-}) => {
-	return (
-		<MediaBlock
-			media={option.content}
-			includeSupplemental={includeSupplemental}
-			audioLabel="Áudio"
-		/>
-	);
-};
 
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
@@ -615,17 +543,11 @@ export const App = () => {
 								</nav>
 
 								{dungeonQuiz.currentHint ? (
-									<div
-										className="quiz-hint-overlay"
-										role="dialog"
-										aria-modal="true"
-										aria-label="Dica do quiz"
-										onClick={dismissDungeonQuizHint}
-									>
-										<div className="quiz-hint-panel">
-											<p className="quiz-hint-message" aria-live="polite">Dica: {dungeonQuiz.currentHint}</p>
-										</div>
-									</div>
+									<HintOverlay
+										hint={dungeonQuiz.currentHint}
+										onDismiss={dismissDungeonQuizHint}
+										ariaLabel="Dica do quiz"
+									/>
 								) : null}
 
 								{dungeonQuiz.isHelp2PanelOpen ? (
@@ -796,17 +718,11 @@ export const App = () => {
 			</nav>
 
 				{currentHint ? (
-					<div
-						className="quiz-hint-overlay"
-						role="dialog"
-						aria-modal="true"
-						aria-label="Dica"
-						onClick={dismissHint}
-					>
-						<div className="quiz-hint-panel">
-							<p className="quiz-hint-message" aria-live="polite">Dica: {currentHint}</p>
-						</div>
-					</div>
+					<HintOverlay
+						hint={currentHint}
+						onDismiss={dismissHint}
+						ariaLabel="Dica"
+					/>
 				) : null}
 
 			{isHelp2PanelOpen ? (
