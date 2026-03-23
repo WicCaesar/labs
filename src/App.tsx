@@ -4,16 +4,9 @@ import type { WorldColorFilterMode } from './shared/events/EventBus';
 import type { MediaPayload, NormalizedAnswerOption, QuizQuestionRecord, Segment } from './data/questionBank';
 import { getCorrectOptionId, getNormalizedOptions, questionBank } from './data/questionBank';
 import StartGame from './game/main';
-import { SCENE_KEYS } from './shared/constants/sceneKeys';
 import { useDungeonQuizFlow } from './ui/hooks/useDungeonQuizFlow';
 import { HELP2_CARD_META } from './ui/hooks/quizAssist';
 import { useStandaloneQuizAssistFlow } from './ui/hooks/useStandaloneQuizAssistFlow';
-
-const dollars = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 0
-});
 
 const MediaBlock = ({
 	media,
@@ -92,23 +85,7 @@ const OptionContent = ({
 export const App = () => {
 	const isDungeonMode = useMemo(() => window.location.hash.toLowerCase().includes('dungeon'), []);
 	const [worldFilterMode, setWorldFilterMode] = useState<WorldColorFilterMode>('none');
-	const [dungeonHud, setDungeonHud] = useState({
-		level: 1 as 1 | 2 | 3 | 4,
-		status: 'A masmorra está em escala de cinza. Encontre o pinguim vagante.',
-		hint: 'Controles: WASD/Setas + E para interagir',
-		objective: 'Desbloquear azul.',
-		canInteract: false,
-		state: 'level-one-hunt-blue' as
-			| 'level-one-hunt-blue'
-			| 'level-one-blue-unlocked'
-			| 'level-two-hunt-red'
-			| 'level-two-red-unlocked'
-			| 'level-three-hunt-yellow'
-			| 'level-three-yellow-unlocked'
-			| 'level-four-button-puzzle'
-			| 'complete'
-	});
-	const [dungeonInteractableNotice, setDungeonInteractableNotice] = useState<string | null>(null);
+
 	const {
 		dungeonQuiz,
 		dungeonQuizHeadingRef,
@@ -175,15 +152,10 @@ export const App = () => {
 		: (question.promptText ?? 'Observe o que está abaixo e escolha a resposta mais adequada.');
 
 	useEffect(() => {
-		const game = StartGame(
-			'game-container',
-			isDungeonMode ? SCENE_KEYS.ISOMETRIC_DUNGEON : SCENE_KEYS.QUIZ_GAME
-		);
+		const game = StartGame('game-container');
 
-		// Prevent AudioContext resume errors on closed contexts
 		const handleVisibilityChange = () => {
 			if (document.hidden) {
-				// Pause all audio elements when page is hidden
 				document.querySelectorAll('audio').forEach((audio) => {
 					if (!audio.paused) {
 						audio.pause();
@@ -203,7 +175,6 @@ export const App = () => {
 	useEffect(() => {
 		if (!isDungeonMode) {
 			setWorldFilterMode('none');
-			setDungeonInteractableNotice(null);
 			return;
 		}
 
@@ -213,32 +184,10 @@ export const App = () => {
 			setWorldFilterMode(mode);
 		});
 
-		const unsubscribeHud = EventBus.on('dungeon:hud-state-changed', (hudState) => {
-			setDungeonHud(hudState);
-		});
-
-		let clearNoticeTimer = 0;
-		const unsubscribeInteractable = EventBus.on('dungeon:interactable-activated', ({ message, durationMs }) => {
-			setDungeonInteractableNotice(message);
-			if (clearNoticeTimer > 0) {
-				window.clearTimeout(clearNoticeTimer);
-			}
-
-			clearNoticeTimer = window.setTimeout(() => {
-				setDungeonInteractableNotice(null);
-			}, durationMs);
-		});
-
 		return () => {
-			if (clearNoticeTimer > 0) {
-				window.clearTimeout(clearNoticeTimer);
-			}
 			unsubscribeWorld();
-			unsubscribeHud();
-			unsubscribeInteractable();
 		};
 	}, [isDungeonMode]);
-
 
 	useEffect(() => {
 		const unsubscribeIndex = EventBus.on('quiz:question-index-changed', ({ questionIndex: nextIndex }) => {
@@ -305,8 +254,6 @@ export const App = () => {
 	const skipDisabled = progress.skipsRemaining <= 0;
 	const worldFilterClass = worldFilterMode === 'none' ? '' : `world-filter-${worldFilterMode}`;
 
-	// Filter IDs here must stay in sync with CSS classes in public/style.css
-	// and WorldColorFilterMode values from the typed EventBus contract.
 	const worldFilterDefs = (
 		<svg className="color-filter-defs" aria-hidden="true" focusable="false">
 			<defs>
@@ -403,19 +350,6 @@ export const App = () => {
 				{worldFilterDefs}
 				<main className={`dungeon-layout ${worldFilterClass}`.trim()} aria-label="Isometric Dungeon">
 					<div id="game-container" className="phaser-host is-visible" />
-					<section className="dungeon-hud" aria-live="polite">
-						<p className="dungeon-hud-level">Level {dungeonHud.level}</p>
-						<p className="dungeon-hud-status">{dungeonHud.status}</p>
-						<p className="dungeon-hud-objective">Objective: {dungeonHud.objective}</p>
-						<p className="dungeon-hud-hint">{dungeonHud.hint}</p>
-						<p className="dungeon-hud-controls">WASD/Arrows to move. E to interact.</p>
-						{dungeonHud.canInteract ? <span className="dungeon-hud-ready">Interação disponível</span> : null}
-					</section>
-					{dungeonInteractableNotice ? (
-						<aside className="dungeon-interactable-toast" aria-live="assertive">
-							{dungeonInteractableNotice}
-						</aside>
-					) : null}
 
 					{dungeonQuiz.isOpen && dungeonQuizCurrentQuestion ? (
 						<div className="dungeon-quiz-overlay" role="dialog" aria-modal="true" aria-labelledby="dungeon-quiz-title">
@@ -585,8 +519,8 @@ export const App = () => {
 			<header className="question-panel" role="region" aria-labelledby="question-title">
 				<div className="question-meta">
 					<span className="badge">Segmento {progress.activeSegment}</span>
-					<span className="badge">Prêmio da pergunta {dollars.format(progress.currentQuestionPrize)}</span>
-					<span className="badge">Garantido {dollars.format(progress.guaranteedPrize)}</span>
+					<span className="badge">Prêmio da pergunta R$ {progress.currentQuestionPrize}</span>
+					<span className="badge">Garantido R$ {progress.guaranteedPrize}</span>
 					<span className="badge">
 						Limpos {progress.clearedSegments.length > 0 ? progress.clearedSegments.join(', ') : 'nenhum'}
 					</span>
