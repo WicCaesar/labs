@@ -83,6 +83,11 @@ textarea {
     opacity: 1;
     pointer-events: auto;
     overflow: hidden;
+    z-index: 1;
+}
+
+.phaser-host.is-visible canvas {
+    z-index: 1;
 }
 
 .dungeon-hud {
