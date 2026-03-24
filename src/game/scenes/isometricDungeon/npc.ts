@@ -89,9 +89,10 @@ export type NpcState = {
   healthBarFill: Phaser.GameObjects.Rectangle;
   isFrozen: boolean;
   frozenPosition: Vec2 | null;
-  moveSpeed: number; // Velocidade de movimento (para inimigos)
-  pointsOnKill: number; // Pontos ganhos ao matar este inimigo
-  scale: number; // Escala do sprite (para bosses maiores)
+  moveSpeed: number;
+  pointsOnKill: number;
+  scale: number;
+  isEnemy: boolean;
 };
 
 let npcIdCounter = 0;
@@ -176,6 +177,7 @@ export function spawnNpc(
     moveSpeed: moveSpeedValue,
     pointsOnKill: 10,
     scale: 1,
+    isEnemy,
   };
 }
 
