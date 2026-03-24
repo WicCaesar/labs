@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS } from '../../shared/constants/sceneKeys';
 import { RankScreen } from './RankScreen';
+import { addBalance } from './PowerUpScreen';
 
 export class DeathScreen extends Phaser.Scene {
 	private score = 0;
@@ -39,6 +40,7 @@ export class DeathScreen extends Phaser.Scene {
 
 		if (this.score > 0) {
 			RankScreen.saveScore(this.score);
+			addBalance(this.score);
 			const savedText = this.add.text(centerX, centerY + 10, 'Pontuação salva!', {
 				fontSize: '18px',
 				color: '#808080',

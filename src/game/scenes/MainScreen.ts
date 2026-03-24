@@ -37,7 +37,11 @@ export class MainScreen extends Phaser.Scene {
 			this.scene.start(SCENE_KEYS.ISOMETRIC_DUNGEON);
 		});
 
-		this.createButton(centerX, centerY + 120, 'RANKING', 0x404040, 0x606060, () => {
+		this.createButton(centerX, centerY + 120, 'LOJA', 0x404040, 0x606060, () => {
+			this.scene.start(SCENE_KEYS.POWERUP_SCREEN);
+		});
+
+		this.createButton(centerX, centerY + 180, 'RANKING', 0x404040, 0x606060, () => {
 			this.scene.start(SCENE_KEYS.RANK_SCREEN);
 		});
 

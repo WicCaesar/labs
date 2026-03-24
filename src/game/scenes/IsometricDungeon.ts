@@ -26,7 +26,7 @@ import { spawnNpc, syncNpcSprite, type NpcState, updateEnemyNpcMovement, updateN
 import { spawnPlayer, syncPlayerSprite, type PlayerState, updatePlayerMovement } from './isometricDungeon/player';
 import { fireSnowball, updateSnowballProjectile, type SnowballProjectile } from './isometricDungeon/projectiles';
 import { resolveDungeonInteractionAction } from './isometricDungeon/interactionState';
-import { findNearestEnemy, isEnemyInRange } from './isometricDungeon/combatSystem';
+import { findNearestEnemy } from './isometricDungeon/combatSystem';
 import {
 	resolveExitAvailableForLevel,
 	resolveStateForLevelLoad,
@@ -35,6 +35,7 @@ import {
 import { COLLECTIBLE_CONFIGS } from '../../shared/constants/collectibleConfig';
 import { spawnCollectibles, updateCollectibleOverlap, removeCollectibleFromWorld, clearAllCollectibles } from './isometricDungeon/collectibles';
 import type { CollectibleItem } from '../../shared/types/collectibles';
+import { getUpgrades, saveUpgrades, getSnowballCooldown, getBlueSwordCooldown, getSnowballDamage, getBlueSwordDamage, getBlueSwordArcAngle } from './PowerUpScreen';
 
 const SPIN_DIRECTIONS: DirectionKey[] = [
 	'north',
@@ -135,6 +136,8 @@ export class IsometricDungeon extends Phaser.Scene {
 
 	private weaponCooldown = 0;
 
+	private blueSwordActive = false;
+
 	private worldOffsetX = 0;
 
 	private worldOffsetY = 0;
@@ -149,19 +152,19 @@ export class IsometricDungeon extends Phaser.Scene {
 		{
 			enemyCount: 3,
 			enemyHealth: 5,
-			enemyPoints: 10
+			enemyPoints: 25
 		},
 		{
 			enemyCount: 5,
 			enemyHealth: 30,
-			enemyPoints: 10
+			enemyPoints: 50
 		},
 		{
 			enemyCount: 10,
 			enemyHealth: 10,
-			enemyPoints: 10,
+			enemyPoints: 50,
 			bossHealth: 100,
-			bossPoints: 10
+			bossPoints: 200
 		}
 	];
 
@@ -170,11 +173,9 @@ export class IsometricDungeon extends Phaser.Scene {
 		npc: NpcState;
 	}[] = [];
 
-	private isLevelTwoIntroActive = false;
+	private spawnIndicators: Phaser.GameObjects.GameObject[] = [];
 
 	private isLevelTwoIntroFrozen = false;
-
-	private spawnIndicators: Phaser.GameObjects.GameObject[] = [];
 
 	private waveCountdownText: Phaser.GameObjects.Text | null = null;
 
@@ -224,7 +225,6 @@ export class IsometricDungeon extends Phaser.Scene {
 				this.isNpcDialogueActive = false;
 				if (this.isLevelTwoIntroFrozen && this.currentLevel === DUNGEON_LEVEL.TWO) {
 					this.isLevelTwoIntroFrozen = false;
-					this.isLevelTwoIntroActive = false;
 				}
 				this.npcDialogueCooldownUntil = this.time.now + this.npcDialogueCooldownMs;
 
@@ -261,12 +261,10 @@ export class IsometricDungeon extends Phaser.Scene {
 		const playerWorld = this.isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
 		this.cameras.main.centerOn(playerWorld.x, playerWorld.y);
 
-		const levelNpcRole = this.levels[this.currentLevel].npcRole;
-		const isEnemyLevel = levelNpcRole === 'enemy';
 		const allEnemiesDefeated = this.npcs.length === 0 || this.npcs.every(npc => npc.health <= 0);
 
 		for (const npc of this.npcs) {
-			if (this.state === 'level-two-hunt-red' && !allEnemiesDefeated && isEnemyLevel && !this.isLevelTwoIntroActive) {
+			if (npc.health > 0 && npc.isEnemy) {
 				updateEnemyNpcMovement(npc, this.player.gridPos, delta, this.collisionMap, this.mapWidth, this.mapHeight, this.npcs);
 				this.handleEnemyTouchDamage();
 			} else {
@@ -785,22 +783,31 @@ export class IsometricDungeon extends Phaser.Scene {
 	}
 
 	private updateWeaponSystem(delta: number, isoToWorld: (x: number, y: number) => { x: number; y: number }) {
-		const isHostileLevel = this.currentLevel === DUNGEON_LEVEL.TWO && !this.redUnlocked;
-		const aliveEnemies = this.npcs.filter((npc) => npc.health > 0);
+		const upgrades = getUpgrades();
+		this.blueSwordActive = upgrades.blueSwordUnlocked;
+		
+		const enemyNpcs = this.npcs.filter((npc) => npc.health > 0 && npc.isEnemy);
 
-		if (isHostileLevel && aliveEnemies.length > 0) {
-			const nearestEnemy = findNearestEnemy(aliveEnemies, this.player.gridPos);
+		if (enemyNpcs.length > 0) {
+			const nearestEnemy = findNearestEnemy(enemyNpcs, this.player.gridPos);
 
-			if (nearestEnemy && isEnemyInRange(this.player.gridPos, nearestEnemy)) {
+			if (nearestEnemy) {
 				this.weaponCooldown -= delta;
 
 				if (this.weaponCooldown <= 0) {
 					const playerWorld = isoToWorld(this.player.gridPos.x, this.player.gridPos.y);
-					const snowball = fireSnowball(this, playerWorld, nearestEnemy.gridPos, isoToWorld);
-					if (snowball) {
-						snowball.targetNpc = nearestEnemy;
-						this.snowballs.push(snowball);
-						this.weaponCooldown = 500;
+
+					if (this.blueSwordActive) {
+						this.performBlueSwordSlash(playerWorld, isoToWorld);
+						this.weaponCooldown = getBlueSwordCooldown(upgrades.blueSwordCooldownLevel);
+					} else {
+						const snowball = fireSnowball(this, playerWorld, nearestEnemy.gridPos, isoToWorld);
+						if (snowball) {
+							snowball.targetNpc = nearestEnemy;
+							this.snowballs.push(snowball);
+							this.weaponCooldown = getSnowballCooldown(upgrades.snowballCooldownLevel);
+							snowball.damage = getSnowballDamage(upgrades.snowballDamageLevel);
+						}
 					}
 				}
 			}
@@ -839,9 +846,24 @@ export class IsometricDungeon extends Phaser.Scene {
 		npc.healthBarBg.destroy();
 		npc.healthBarFill.destroy();
 
+		const indicatorIndex = this.exclamationIndicators.findIndex(ind => ind.npc === npc);
+		if (indicatorIndex > -1) {
+			this.exclamationIndicators[indicatorIndex].graphic.destroy();
+			this.exclamationIndicators.splice(indicatorIndex, 1);
+		}
+
 		const index = this.npcs.indexOf(npc);
 		if (index > -1) {
 			this.npcs.splice(index, 1);
+		}
+
+		const isBoss = npc.id && npc.id.includes('boss');
+		if (isBoss && this.currentWave === 2) {
+			const upgrades = getUpgrades();
+			if (!upgrades.blueSwordUnlocked) {
+				upgrades.blueSwordUnlocked = true;
+				saveUpgrades(upgrades);
+			}
 		}
 
 		const points = (npc as NpcState & { customPoints?: number }).customPoints ?? this.POINTS_PER_KILL;
@@ -861,6 +883,130 @@ export class IsometricDungeon extends Phaser.Scene {
 		}
 
 		this.killEnemyUnlockRed();
+	}
+
+	private activeSwordSlash: {
+		graphics: Phaser.GameObjects.Graphics;
+		hitEnemies: Set<NpcState>;
+		duration: number;
+		elapsed: number;
+		damage: number;
+		reach: number;
+	} | null = null;
+
+	private performBlueSwordSlash(
+		playerWorld: { x: number; y: number },
+		_isoToWorld: (x: number, y: number) => { x: number; y: number }
+	): void {
+		if (this.activeSwordSlash) {
+			this.activeSwordSlash.graphics.destroy();
+		}
+
+		const upgrades = getUpgrades();
+		const SWORD_COLOR = 0x4a9eff;
+		const arcAngle = getBlueSwordArcAngle(upgrades.blueSwordCooldownLevel);
+		const reach = 3;
+		const damage = getBlueSwordDamage(upgrades.blueSwordDamageLevel);
+
+		const facing = this.player.facing;
+		const DIRECTION_TO_ANGLE: Record<string, number> = {
+			north: -90,
+			'north-east': -45,
+			east: 0,
+			'south-east': 45,
+			south: 90,
+			'south-west': 135,
+			west: 180,
+			'north-west': -135,
+		};
+		const angle = DIRECTION_TO_ANGLE[facing] ?? 0;
+		const angleRad = Phaser.Math.DegToRad(angle);
+
+		const graphics = this.add.graphics();
+		graphics.lineStyle(8, SWORD_COLOR, 1);
+		graphics.fillStyle(SWORD_COLOR, 0.3);
+
+		const startAngle = angleRad - Phaser.Math.DegToRad(arcAngle / 2);
+		const endAngle = angleRad + Phaser.Math.DegToRad(arcAngle / 2);
+		const radius = reach * 32;
+
+		graphics.beginPath();
+		graphics.arc(playerWorld.x, playerWorld.y, radius, startAngle, endAngle, false);
+		graphics.strokePath();
+
+		graphics.beginPath();
+		graphics.moveTo(playerWorld.x, playerWorld.y);
+		graphics.arc(playerWorld.x, playerWorld.y, radius, startAngle, endAngle, false);
+		graphics.lineTo(playerWorld.x, playerWorld.y);
+		graphics.closePath();
+		graphics.fillPath();
+
+		graphics.setDepth(playerWorld.y + 5);
+
+		this.activeSwordSlash = {
+			graphics,
+			hitEnemies: new Set(),
+			duration: 200,
+			elapsed: 0,
+			damage,
+			reach,
+		};
+
+		this.checkSwordSlashHits(arcAngle);
+
+		this.time.delayedCall(200, () => {
+			if (this.activeSwordSlash) {
+				this.activeSwordSlash.graphics.destroy();
+				this.activeSwordSlash = null;
+			}
+		});
+	}
+
+	private checkSwordSlashHits(arcAngle: number): void {
+		if (!this.activeSwordSlash) return;
+
+		const { hitEnemies, damage, reach } = this.activeSwordSlash;
+		const playerGridPos = this.player.gridPos;
+
+		const facing = this.player.facing;
+		const DIRECTION_TO_ANGLE: Record<string, number> = {
+			north: -90,
+			'north-east': -45,
+			east: 0,
+			'south-east': 45,
+			south: 90,
+			'south-west': 135,
+			west: 180,
+			'north-west': -135,
+		};
+		const angle = DIRECTION_TO_ANGLE[facing] ?? 0;
+		const angleRad = Phaser.Math.DegToRad(angle);
+		const halfArc = Phaser.Math.DegToRad(arcAngle / 2);
+
+		for (const enemy of this.npcs) {
+			if (enemy.health <= 0) continue;
+			if (hitEnemies.has(enemy)) continue;
+
+			const dx = enemy.gridPos.x - playerGridPos.x;
+			const dy = enemy.gridPos.y - playerGridPos.y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+
+			if (distance > reach) continue;
+
+			const enemyAngle = Math.atan2(dy, dx);
+			let angleDiff = enemyAngle - angleRad;
+			while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+			while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+			if (Math.abs(angleDiff) <= halfArc) {
+				damageEnemy(enemy, damage);
+				hitEnemies.add(enemy);
+
+				if (enemy.health <= 0) {
+					this.handleEnemyKilled(enemy);
+				}
+			}
+		}
 	}
 
 	private rebuildCollisionMap() {
@@ -1615,12 +1761,10 @@ export class IsometricDungeon extends Phaser.Scene {
 			return;
 		}
 
-		this.isLevelTwoIntroActive = true;
 		this.showExclamationIndicators();
 	}
 
 	private showExclamationIndicators() {
-		this.isLevelTwoIntroActive = true;
 		this.exclamationIndicators = [];
 
 		for (const npc of this.npcs) {
@@ -1671,7 +1815,6 @@ export class IsometricDungeon extends Phaser.Scene {
 			graphic.destroy();
 		}
 		this.exclamationIndicators = [];
-		this.isLevelTwoIntroActive = false;
 	}
 
 	private updateExclamationIndicatorPositions() {
