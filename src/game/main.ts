@@ -3,6 +3,7 @@ import { IsometricDungeon } from './scenes/IsometricDungeon';
 import { MainScreen } from './scenes/MainScreen';
 import { RankScreen } from './scenes/RankScreen';
 import { DeathScreen } from './scenes/DeathScreen';
+import { PowerUpScreen } from './scenes/PowerUpScreen';
 import { AUTO, Game, Scale,Types } from 'phaser';
 
 // Find out more information about the Game Config at:
@@ -20,7 +21,7 @@ const config: Types.Core.GameConfig = {
 };
 
 const StartGame = (parent: string) => {
-    const orderedScenes = [MainScreen, MainGame, IsometricDungeon, RankScreen, DeathScreen];
+    const orderedScenes = [MainScreen, MainGame, IsometricDungeon, RankScreen, DeathScreen, PowerUpScreen];
 
     return new Game({ ...config, parent, scene: orderedScenes });
 }
